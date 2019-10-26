@@ -302,6 +302,7 @@ static int recv_socket_data(SOCKET_INSTANCE* socket_impl)
     int result;
     if (socket_impl->on_bytes_received == NULL)
     {
+        // No receive callback so don't receive
         result = 0;
     }
     else
@@ -334,48 +335,86 @@ static int recv_socket_data(SOCKET_INSTANCE* socket_impl)
     return result;
 }
 
-static SOCKET_SEND_RESULT send_socket_data(SOCKET_INSTANCE* socket_impl)
+static SOCKET_SEND_RESULT send_socket_data(SOCKET_INSTANCE* socket_impl, PENDING_SEND_ITEM* pending_item)
+{
+    SOCKET_SEND_RESULT result;
+
+    // Send the current item
+    ssize_t send_res = send(socket_impl->socket, pending_item->send_data, pending_item->data_len, 0);
+    if ((send_res < 0) || ((size_t)send_res != pending_item->data_len))
+    {
+        if (send_res == SOCKET_SEND_ERROR)
+        {
+            if (errno == EAGAIN)
+            {
+                if (item_list_add_item(socket_impl->pending_list, pending_item) != 0)
+                {
+                    if (pending_item->on_send_complete != NULL)
+                    {
+                        pending_item->on_send_complete(pending_item->send_ctx, IO_SEND_ERROR);
+                    }
+                    log_error("Failure allocating malloc");
+                    result = SEND_RESULT_ERROR;
+                }
+                else
+                {
+                    result = SEND_RESULT_WAIT;
+                }
+            }
+            else
+            {
+                if (pending_item->on_send_complete != NULL)
+                {
+                    pending_item->on_send_complete(pending_item->send_ctx, IO_SEND_ERROR);
+                }
+                log_error("Failure sending data on the socket, errno: %d (%s)", errno, strerror(errno));
+                result = SEND_RESULT_ERROR;
+            }
+        }
+        else
+        {
+            // Partial send
+            pending_item->send_data += send_res;
+            pending_item->data_len -= send_res;
+            if (item_list_add_item(socket_impl->pending_list, pending_item) != 0)
+            {
+                indicate_error(socket_impl, IO_ERROR_MEMORY);
+
+                // if (pending_item->on_send_complete != NULL)
+                // {
+                //     pending_item->on_send_complete(pending_item->send_ctx, IO_SEND_ERROR);
+                // }
+                log_error("Failure allocating malloc");
+                result = SEND_RESULT_ERROR;
+            }
+            else
+            {
+                result = SEND_RESULT_PARTIAL_SEND;
+            }
+        }
+    }
+    else
+    {
+        // Send success free the memory
+        if (pending_item->on_send_complete != NULL)
+        {
+            pending_item->on_send_complete(pending_item->send_ctx, IO_SEND_OK);
+        }
+        result = SEND_RESULT_SUCCESS;
+    }
+    return result;
+}
+
+static SOCKET_SEND_RESULT send_socket_cached_data(SOCKET_INSTANCE* socket_impl)
 {
     SOCKET_SEND_RESULT result;
     // Now check to see if we have pending sends
     PENDING_SEND_ITEM* pending_item = (PENDING_SEND_ITEM*)item_list_get_front(socket_impl->pending_list);
     if (pending_item != NULL)
     {
-        // Send the current item
-        ssize_t send_res = send(socket_impl->socket, pending_item->send_data, pending_item->data_len, 0);
-        if ((send_res < 0) || ((size_t)send_res != pending_item->data_len))
+        result = send_socket_data(socket_impl, pending_item);
+        if (result == SEND_RESULT_SUCCESS)
         {
-            if (send_res == SOCKET_SEND_ERROR)
-            {
-                if (errno == EAGAIN)
-                {
-                    result = SEND_RESULT_WAIT;
-                }
-                else
-                {
-                    if (pending_item->on_send_complete != NULL)
-                    {
-                        pending_item->on_send_complete(pending_item->send_ctx, IO_SEND_ERROR);
-                    }
-                    log_error("Failure sending data on the socket, errno: %d (%s)", errno, strerror(errno));
-                    result = SEND_RESULT_ERROR;
-                }
-            }
-            else
-            {
-                // Partial send
-                pending_item->send_data += send_res;
-                pending_item->data_len -= send_res;
-                result = SEND_RESULT_PARTIAL_SEND;
-            }
-        }
-        else
-        {
-            // Send success free the memory
-            if (pending_item->on_send_complete != NULL)
-            {
-                pending_item->on_send_complete(pending_item->send_ctx, IO_SEND_OK);
-            }
             if (item_list_remove_item(socket_impl->pending_list, 0) != 0)
             {
                 indicate_error(socket_impl, IO_ERROR_GENERAL);
@@ -386,7 +425,6 @@ static SOCKET_SEND_RESULT send_socket_data(SOCKET_INSTANCE* socket_impl)
                 result = SEND_RESULT_SUCCESS;
             }
         }
-
     }
     else
     {
@@ -511,9 +549,9 @@ int xio_socket_close(XIO_IMPL_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_compl
 int xio_socket_send(XIO_IMPL_HANDLE xio, const void* buffer, size_t size, ON_SEND_COMPLETE on_send_complete, void* callback_context)
 {
     int result;
-    if (xio == NULL)
+    if (xio == NULL || buffer == NULL || size == 0)
     {
-        log_error("Invalid parameter xio is NULL");
+        log_error("Invalid parameter xio: %p, buffer: %p, size: %d", xio, buffer, (int)size);
         result = MU_FAILURE;
     }
     else
@@ -537,21 +575,22 @@ int xio_socket_send(XIO_IMPL_HANDLE xio, const void* buffer, size_t size, ON_SEN
             send_item->send_ctx = callback_context;
             send_item->send_data = buffer;
             send_item->data_len = size;
-            if (item_list_add_item(socket_impl->pending_list, send_item) != 0)
+
+            SOCKET_SEND_RESULT send_res = send_socket_data(socket_impl, send_item);
+            if (send_res == SOCKET_SEND_ERROR)
             {
-                log_error("Failure allocating malloc");
+                log_error("Failure attempting to send socket data");
                 free(send_item);
                 result = MU_FAILURE;
             }
-            else if (send_socket_data(socket_impl) == SOCKET_SEND_ERROR)
+            else if (send_res == SEND_RESULT_SUCCESS)
             {
-                log_error("Failure attempting to send socket data");
-                item_list_remove_item(socket_impl->pending_list, item_list_item_count(socket_impl->pending_list) - 1);
                 free(send_item);
-                result = MU_FAILURE;
+                result = 0;
             }
             else
             {
+                // Partial send, don't free wait for the dowork
                 result = 0;
             }
         }
@@ -592,7 +631,7 @@ void xio_socket_dowork(XIO_IMPL_HANDLE xio)
             bool cont_process_loop = true;
             do
             {
-                if (send_socket_data(socket_impl) == SEND_RESULT_SUCCESS)
+                if (send_socket_cached_data(socket_impl) != SEND_RESULT_SUCCESS)
                 {
                     cont_process_loop = false;
                 }

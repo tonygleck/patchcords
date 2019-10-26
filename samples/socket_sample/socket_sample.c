@@ -69,7 +69,7 @@ int main()
     }
     else
     {
-        SAMPLE_DATA data;
+        SAMPLE_DATA data = {0};
         if (xio_socket_open(handle, on_xio_open_complete, &data, on_xio_bytes_recv, &data, on_xio_error, NULL) != 0)
         {
             printf("Failed socket open");

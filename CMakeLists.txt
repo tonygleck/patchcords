@@ -49,7 +49,7 @@ set(socket_berkley_c_files
     ./src/xio_client_berkley.c
 )
 add_library(cord_berkley ${socket_berkley_c_files} ${socket_berkley_h_files})
-target_link_libraries(cord_berkley lib-util-c)
+target_link_libraries(cord_berkley patchcords lib-util-c)
 
 if (${patchcords_ut})
     enable_testing()

@@ -6,6 +6,6 @@
 int main(void)
 {
     size_t failedTestCount = 0;
-    RUN_TEST_SUITE(xio_client_berkley_ut, failedTestCount);
+    RUN_TEST_SUITE(xio_socket_berkley_ut, failedTestCount);
     return failedTestCount;
 }

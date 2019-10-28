@@ -77,7 +77,7 @@ int main()
 
         do
         {
-            xio_socket_dowork(handle);
+            xio_socket_process_item(handle);
 
             if (data.socket_open > 0)
             {

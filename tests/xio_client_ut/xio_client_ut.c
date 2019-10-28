@@ -36,10 +36,12 @@ MOCKABLE_FUNCTION(, void, test_xio_destroy, XIO_IMPL_HANDLE, handle);
 MOCKABLE_FUNCTION(, int, test_xio_open, XIO_IMPL_HANDLE, handle, ON_IO_OPEN_COMPLETE, on_io_open_complete, void*, on_io_open_complete_context, ON_BYTES_RECEIVED, on_bytes_received, void*, on_bytes_received_context, ON_IO_ERROR, on_io_error, void*, on_io_error_context);
 MOCKABLE_FUNCTION(, int, test_xio_close, XIO_IMPL_HANDLE, handle, ON_IO_CLOSE_COMPLETE, on_io_close_complete, void*, callback_context);
 MOCKABLE_FUNCTION(, int, test_xio_send, XIO_IMPL_HANDLE, handle, const void*, buffer, size_t, size, ON_SEND_COMPLETE, on_send_complete, void*, callback_context);
-MOCKABLE_FUNCTION(, void, test_xio_dowork, XIO_IMPL_HANDLE, handle);
+MOCKABLE_FUNCTION(, void, test_xio_process_item, XIO_IMPL_HANDLE, handle);
+MOCKABLE_FUNCTION(, const char*, test_xio_query_endpoint, XIO_IMPL_HANDLE, handle);
 #undef ENABLE_MOCKS
 
 static const char* TEST_SEND_BUFFER = "Test send buffer";
+static const char* TEST_ENDPOINT = "Test_Endpoint";
 static size_t TEST_SEND_BUFFER_LEN = 16;
 
 #ifdef __cplusplus
@@ -95,7 +97,8 @@ const IO_INTERFACE_DESCRIPTION io_interface_description =
     test_xio_open,
     test_xio_close,
     test_xio_send,
-    test_xio_dowork
+    test_xio_process_item,
+    test_xio_query_endpoint
 };
 
 static TEST_MUTEX_HANDLE test_serialize_mutex;
@@ -130,6 +133,8 @@ TEST_SUITE_INITIALIZE(suite_init)
 
     REGISTER_GLOBAL_MOCK_HOOK(test_xio_create, my_test_xio_create);
     REGISTER_GLOBAL_MOCK_HOOK(test_xio_destroy, my_test_xio_destroy);
+
+    REGISTER_GLOBAL_MOCK_RETURN(test_xio_query_endpoint, TEST_ENDPOINT);
 }
 
 TEST_SUITE_CLEANUP(suite_cleanup)
@@ -380,12 +385,12 @@ TEST_FUNCTION(xio_client_send_fail)
     xio_client_destroy(handle);
 }
 
-TEST_FUNCTION(xio_client_dowork_NULL_fail)
+TEST_FUNCTION(xio_client_process_item_NULL_fail)
 {
     // arrange
 
     // act
-    xio_client_dowork(NULL);
+    xio_client_process_item(NULL);
 
     // assert
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
@@ -393,19 +398,52 @@ TEST_FUNCTION(xio_client_dowork_NULL_fail)
     // cleanup
 }
 
-TEST_FUNCTION(xio_client_dowork_success)
+TEST_FUNCTION(xio_client_process_item_success)
 {
     // arrange
     int parameters = 10;
     XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
     umock_c_reset_all_calls();
 
-    STRICT_EXPECTED_CALL(test_xio_dowork(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(test_xio_process_item(IGNORED_PTR_ARG));
 
     // act
-    xio_client_dowork(handle);
+    xio_client_process_item(handle);
 
     // assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    xio_client_destroy(handle);
+}
+
+TEST_FUNCTION(xio_client_query_endpoint_NULL_fail)
+{
+    // arrange
+
+    // act
+    xio_client_query_endpoint(NULL);
+
+    // assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+}
+
+TEST_FUNCTION(xio_client_query_endpoint_success)
+{
+    // arrange
+    int parameters = 10;
+    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(test_xio_query_endpoint(IGNORED_PTR_ARG));
+
+    // act
+    const char* endpoint = xio_client_query_endpoint(handle);
+
+    // assert
+    ASSERT_ARE_EQUAL(char_ptr, TEST_ENDPOINT, endpoint);
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup

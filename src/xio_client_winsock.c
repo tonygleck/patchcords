@@ -573,7 +573,7 @@ int xio_socket_send(XIO_IMPL_HANDLE xio, const void* buffer, size_t size, ON_SEN
     return result;
 }
 
-void xio_socket_dowork(XIO_IMPL_HANDLE xio)
+void xio_socket_process_item(XIO_IMPL_HANDLE xio)
 {
     if (xio != NULL)
     {
@@ -623,6 +623,21 @@ void xio_socket_dowork(XIO_IMPL_HANDLE xio)
     }
 }
 
+const char* xio_socket_query_endpoint(XIO_INSTANCE_HANDLE xio)
+{
+    const char* result;
+    if (xio == NULL)
+    {
+        result = NULL;
+    }
+    else
+    {
+        SOCKET_INSTANCE* socket_impl = (SOCKET_INSTANCE*)xio;
+        result = socket_impl->hostname;
+    }
+    return result;
+}
+
 static const IO_INTERFACE_DESCRIPTION socket_io_interface =
 {
     xio_socket_create,
@@ -630,7 +645,7 @@ static const IO_INTERFACE_DESCRIPTION socket_io_interface =
     xio_socket_open,
     xio_socket_close,
     xio_socket_send,
-    xio_socket_dowork,
+    xio_socket_process_item,
 };
 
 const IO_INTERFACE_DESCRIPTION* xio_socket_get_interface(void)

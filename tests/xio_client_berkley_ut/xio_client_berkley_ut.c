@@ -161,7 +161,7 @@ static void on_umock_c_error(UMOCK_C_ERROR_CODE error_code)
     ASSERT_FAIL("umock_c reported error :%s", MU_ENUM_TO_STRING(UMOCK_C_ERROR_CODE, error_code));
 }
 
-BEGIN_TEST_SUITE(xio_client_berkley_ut)
+BEGIN_TEST_SUITE(xio_socket_berkley_ut)
 
 TEST_SUITE_INITIALIZE(suite_init)
 {
@@ -178,11 +178,6 @@ TEST_SUITE_INITIALIZE(suite_init)
     REGISTER_UMOCK_ALIAS_TYPE(IO_SEND_RESULT, int);
     REGISTER_UMOCK_ALIAS_TYPE(IO_ERROR_RESULT, int);
     REGISTER_UMOCK_ALIAS_TYPE(ssize_t, unsigned int);
-
-    /*REGISTER_UMOCK_ALIAS_TYPE(ON_IO_CLOSE_COMPLETE, void*);
-    REGISTER_UMOCK_ALIAS_TYPE(ON_SEND_COMPLETE, void*);
-    REGISTER_UMOCK_ALIAS_TYPE(ON_BYTES_RECEIVED, void*);
-    REGISTER_UMOCK_ALIAS_TYPE(ON_IO_ERROR, void*);*/
 
     REGISTER_GLOBAL_MOCK_HOOK(mem_shim_malloc, my_mem_shim_malloc);
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(mem_shim_malloc, NULL);
@@ -308,7 +303,7 @@ TEST_FUNCTION(xio_socket_create_config_NULL_fail)
     // cleanup
 }
 
-TEST_FUNCTION(xio_client_destroy_handle_NULL_succeed)
+TEST_FUNCTION(xio_socket_destroy_handle_NULL_succeed)
 {
     // arrange
 
@@ -321,7 +316,7 @@ TEST_FUNCTION(xio_client_destroy_handle_NULL_succeed)
     // cleanup
 }
 
-TEST_FUNCTION(xio_client_destroy_succeed)
+TEST_FUNCTION(xio_socket_destroy_succeed)
 {
     // arrange
     SOCKETIO_CONFIG config = {0};
@@ -400,7 +395,7 @@ TEST_FUNCTION(xio_socket_open_succeed)
 
     // act
     int result = xio_socket_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
-    xio_socket_dowork(handle);
+    xio_socket_process_item(handle);
 
     // assert
     ASSERT_ARE_EQUAL(int, 0, result);
@@ -484,7 +479,7 @@ TEST_FUNCTION(xio_socket_close_not_open_fail)
 
     // act
     int result = xio_socket_close(handle, test_on_close_complete, NULL);
-    xio_socket_dowork(handle);
+    xio_socket_process_item(handle);
 
     // assert
     ASSERT_ARE_NOT_EQUAL(int, 0, result);
@@ -511,7 +506,7 @@ TEST_FUNCTION(xio_socket_close_success)
 
     // act
     int result = xio_socket_close(handle, test_on_close_complete, NULL);
-    xio_socket_dowork(handle);
+    xio_socket_process_item(handle);
 
     // assert
     ASSERT_ARE_EQUAL(int, 0, result);
@@ -544,7 +539,7 @@ TEST_FUNCTION(xio_socket_send_success)
     config.address_type = ADDRESS_TYPE_IP;
     XIO_IMPL_HANDLE handle = xio_socket_create(&config);
     (void)xio_socket_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
-    xio_socket_dowork(handle);
+    xio_socket_process_item(handle);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(malloc(IGNORED_NUM_ARG));
@@ -561,7 +556,7 @@ TEST_FUNCTION(xio_socket_send_success)
 
     // cleanup
     (void)xio_socket_close(handle, test_on_close_complete, NULL);
-    xio_socket_dowork(handle);
+    xio_socket_process_item(handle);
     xio_socket_destroy(handle);
 }
 
@@ -574,7 +569,7 @@ TEST_FUNCTION(xio_socket_send_no_callback_success)
     config.address_type = ADDRESS_TYPE_IP;
     XIO_IMPL_HANDLE handle = xio_socket_create(&config);
     (void)xio_socket_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
-    xio_socket_dowork(handle);
+    xio_socket_process_item(handle);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(malloc(IGNORED_NUM_ARG));
@@ -590,7 +585,7 @@ TEST_FUNCTION(xio_socket_send_no_callback_success)
 
     // cleanup
     (void)xio_socket_close(handle, test_on_close_complete, NULL);
-    xio_socket_dowork(handle);
+    xio_socket_process_item(handle);
     xio_socket_destroy(handle);
 }
 
@@ -603,7 +598,7 @@ TEST_FUNCTION(xio_socket_send_partial_send_success)
     config.address_type = ADDRESS_TYPE_IP;
     XIO_IMPL_HANDLE handle = xio_socket_create(&config);
     (void)xio_socket_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
-    xio_socket_dowork(handle);
+    xio_socket_process_item(handle);
     umock_c_reset_all_calls();
 
     size_t partial_send_len = g_buffer_len/2;
@@ -620,16 +615,16 @@ TEST_FUNCTION(xio_socket_send_partial_send_success)
 
     // cleanup
     (void)xio_socket_close(handle, test_on_close_complete, NULL);
-    xio_socket_dowork(handle);
+    xio_socket_process_item(handle);
     xio_socket_destroy(handle);
 }
 
-TEST_FUNCTION(xio_socket_dowork_handle_NULL_success)
+TEST_FUNCTION(xio_socket_process_item_handle_NULL_success)
 {
     // arrange
 
     // act
-    xio_socket_dowork(NULL);
+    xio_socket_process_item(NULL);
 
     // assert
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
@@ -637,7 +632,7 @@ TEST_FUNCTION(xio_socket_dowork_handle_NULL_success)
     // cleanup
 }
 
-TEST_FUNCTION(xio_socket_dowork_success)
+TEST_FUNCTION(xio_socket_process_item_success)
 {
     // arrange
     SOCKETIO_CONFIG config = {0};
@@ -646,25 +641,25 @@ TEST_FUNCTION(xio_socket_dowork_success)
     config.address_type = ADDRESS_TYPE_IP;
     XIO_IMPL_HANDLE handle = xio_socket_create(&config);
     (void)xio_socket_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
-    xio_socket_dowork(handle);
+    xio_socket_process_item(handle);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(item_list_get_front(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(recv(IGNORED_NUM_ARG, IGNORED_PTR_ARG, IGNORED_NUM_ARG, IGNORED_NUM_ARG));
 
     // act
-    xio_socket_dowork(handle);
+    xio_socket_process_item(handle);
 
     // assert
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
     (void)xio_socket_close(handle, test_on_close_complete, NULL);
-    xio_socket_dowork(handle);
+    xio_socket_process_item(handle);
     xio_socket_destroy(handle);
 }
 
-TEST_FUNCTION(xio_socket_dowork_recv_success)
+TEST_FUNCTION(xio_socket_process_item_recv_success)
 {
     // arrange
     SOCKETIO_CONFIG config = {0};
@@ -673,7 +668,7 @@ TEST_FUNCTION(xio_socket_dowork_recv_success)
     config.address_type = ADDRESS_TYPE_IP;
     XIO_IMPL_HANDLE handle = xio_socket_create(&config);
     (void)xio_socket_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
-    xio_socket_dowork(handle);
+    xio_socket_process_item(handle);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(item_list_get_front(IGNORED_PTR_ARG));
@@ -683,15 +678,49 @@ TEST_FUNCTION(xio_socket_dowork_recv_success)
     STRICT_EXPECTED_CALL(test_on_bytes_recv(IGNORED_PTR_ARG, IGNORED_PTR_ARG, g_buffer_len));
 
     // act
-    xio_socket_dowork(handle);
+    xio_socket_process_item(handle);
 
     // assert
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
     (void)xio_socket_close(handle, test_on_close_complete, NULL);
-    xio_socket_dowork(handle);
+    xio_socket_process_item(handle);
     xio_socket_destroy(handle);
 }
 
-END_TEST_SUITE(xio_client_berkley_ut)
+TEST_FUNCTION(xio_socket_query_endpoint_NULL_fail)
+{
+    // arrange
+
+    // act
+    xio_socket_query_endpoint(NULL);
+
+    // assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+}
+
+TEST_FUNCTION(xio_socket_query_endpoint_success)
+{
+    // arrange
+    SOCKETIO_CONFIG config = {0};
+    config.hostname = TEST_HOSTNAME;
+    config.port = TEST_PORT_VALUE;
+    config.address_type = ADDRESS_TYPE_IP;
+    XIO_IMPL_HANDLE handle = xio_socket_create(&config);
+    umock_c_reset_all_calls();
+
+    // act
+    const char* endpoint = xio_socket_query_endpoint(handle);
+
+    // assert
+    ASSERT_ARE_EQUAL(char_ptr, TEST_HOSTNAME, endpoint);
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    xio_socket_destroy(handle);
+}
+
+END_TEST_SUITE(xio_socket_berkley_ut)

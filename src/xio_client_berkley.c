@@ -22,6 +22,7 @@
 #include "lib-util-c/sys_debug_shim.h"
 #include "lib-util-c/app_logging.h"
 #include "lib-util-c/item_list.h"
+#include "lib-util-c/crt_extensions.h"
 
 #include "patchcords/xio_client.h"
 #include "patchcords/socket_debug_shim.h"
@@ -95,32 +96,6 @@ typedef struct PENDING_SEND_ITEM_TAG
     ON_SEND_COMPLETE on_send_complete;
     void* send_ctx;
 } PENDING_SEND_ITEM;
-
-static int clone_string(char** target, const char* source)
-{
-    int result;
-    if (target == NULL || source == NULL)
-    {
-        log_error("Invalid parameter specified target: %p, source: %p", target, source);
-        result = __LINE__;
-    }
-    else
-    {
-        size_t length = strlen(source);
-        if ((*target = malloc(length+1)) == NULL)
-        {
-            log_error("Failure allocating target");
-            result = __LINE__;
-        }
-        else
-        {
-            memset(*target, 0, length+1);
-            memcpy(*target, source, length);
-            result = 0;
-        }
-    }
-    return result;
-}
 
 static void on_pending_list_item_destroy(void* user_ctx, void* remove_item)
 {
@@ -648,7 +623,7 @@ void xio_socket_process_item(XIO_IMPL_HANDLE xio)
     }
 }
 
-const char* xio_socket_query_endpoint(XIO_INSTANCE_HANDLE xio)
+const char* xio_socket_query_endpoint(XIO_IMPL_HANDLE xio)
 {
     const char* result;
     if (xio == NULL)

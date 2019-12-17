@@ -22,8 +22,9 @@ XIO_INSTANCE_HANDLE xio_client_create(const IO_INTERFACE_DESCRIPTION* io_interfa
         (io_interface_description->interface_impl_open == NULL) ||
         (io_interface_description->interface_impl_close == NULL) ||
         (io_interface_description->interface_impl_send == NULL) ||
-        (io_interface_description->interface_impl_process_item == NULL ||
-        (io_interface_description->interface_impl_query_endpoint == NULL) ) )
+        (io_interface_description->interface_impl_process_item == NULL) ||
+        (io_interface_description->interface_impl_query_uri == NULL) ||
+        (io_interface_description->interface_impl_query_port == NULL) )
     {
         log_error("Invalid interface description specified");
         result = NULL;
@@ -124,7 +125,7 @@ void xio_client_process_item(XIO_INSTANCE_HANDLE xio)
     }
 }
 
-const char* xio_client_query_endpoint(XIO_INSTANCE_HANDLE xio)
+const char* xio_client_query_endpoint(XIO_INSTANCE_HANDLE xio, uint16_t* port)
 {
     const char* result;
     if (xio == NULL)
@@ -134,7 +135,12 @@ const char* xio_client_query_endpoint(XIO_INSTANCE_HANDLE xio)
     else
     {
         XIO_INSTANCE* xio_instance = (XIO_INSTANCE*)xio;
-        result = xio_instance->io_interface_description->interface_impl_query_endpoint(xio_instance->concrete_xio_handle);
+
+        if (port != NULL)
+        {
+            *port = xio_instance->io_interface_description->interface_impl_query_port(xio_instance->concrete_xio_handle);
+        }
+        result = xio_instance->io_interface_description->interface_impl_query_uri(xio_instance->concrete_xio_handle);
     }
     return result;
 }

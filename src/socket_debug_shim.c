@@ -140,6 +140,9 @@ int socket_shim_getaddrinfo(const char* node, const char* svc_name, const struct
 
 int socket_shim_fcntl(int __fd, int __cmd, ...)
 {
+    (void)__fd;
+    (void)__cmd;
+
     // Todo figure this one out
     return 0;
 }

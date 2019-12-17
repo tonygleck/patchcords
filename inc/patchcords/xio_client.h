@@ -8,9 +8,11 @@
 
 #ifdef __cplusplus
 #include <cstddef>
+#include <cstdint>
 extern "C" {
 #else
 #include <stddef.h>
+#include <stdint.h>
 #endif /* __cplusplus */
 
 typedef struct XIO_INSTANCE_TAG* XIO_INSTANCE_HANDLE;
@@ -50,7 +52,8 @@ typedef int(*IO_OPEN)(XIO_IMPL_HANDLE impl_handle, ON_IO_OPEN_COMPLETE on_io_ope
 typedef int(*IO_CLOSE)(XIO_IMPL_HANDLE impl_handle, ON_IO_CLOSE_COMPLETE on_io_close_complete, void* callback_context);
 typedef int(*IO_SEND)(XIO_IMPL_HANDLE impl_handle, const void* buffer, size_t size, ON_SEND_COMPLETE on_send_complete, void* callback_ctx);
 typedef void(*IO_PROCESS_ITEM)(XIO_IMPL_HANDLE impl_handle);
-typedef const char*(*IO_QUERY_ENDPOINT)(XIO_IMPL_HANDLE impl_handle);
+typedef const char*(*IO_QUERY_URI)(XIO_IMPL_HANDLE impl_handle);
+typedef uint16_t(*IO_QUERY_PORT)(XIO_IMPL_HANDLE impl_handle);
 
 typedef struct IO_INTERFACE_DESCRIPTION_TAG
 {
@@ -60,7 +63,8 @@ typedef struct IO_INTERFACE_DESCRIPTION_TAG
     IO_CLOSE interface_impl_close;
     IO_SEND interface_impl_send;
     IO_PROCESS_ITEM interface_impl_process_item;
-    IO_QUERY_ENDPOINT interface_impl_query_endpoint;
+    IO_QUERY_URI interface_impl_query_uri;
+    IO_QUERY_PORT interface_impl_query_port;
 } IO_INTERFACE_DESCRIPTION;
 
 MOCKABLE_FUNCTION(, XIO_INSTANCE_HANDLE, xio_client_create, const IO_INTERFACE_DESCRIPTION*, io_interface_description, const void*, parameters);
@@ -70,7 +74,7 @@ MOCKABLE_FUNCTION(, int, xio_client_close, XIO_INSTANCE_HANDLE, xio, ON_IO_CLOSE
 MOCKABLE_FUNCTION(, int, xio_client_send, XIO_INSTANCE_HANDLE, xio, const void*, buffer, size_t, size, ON_SEND_COMPLETE, on_send_complete, void*, callback_context);
 MOCKABLE_FUNCTION(, void, xio_client_process_item, XIO_INSTANCE_HANDLE, xio);
 
-MOCKABLE_FUNCTION(, const char*, xio_client_query_endpoint, XIO_INSTANCE_HANDLE, xio);
+MOCKABLE_FUNCTION(, const char*, xio_client_query_endpoint, XIO_INSTANCE_HANDLE, xio, uint16_t*, port);
 
 #ifdef __cplusplus
 }

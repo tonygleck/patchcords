@@ -40,6 +40,8 @@ set(source_h_files
 
 #this is the product (a library)
 add_library(patchcords ${source_c_files} ${source_h_files})
+addCompileSettings(patchcords)
+compileTargetAsC99(patchcords)
 
 # Berkley socket library
 set(socket_berkley_h_files
@@ -50,6 +52,8 @@ set(socket_berkley_c_files
 )
 add_library(cord_berkley ${socket_berkley_c_files} ${socket_berkley_h_files})
 target_link_libraries(cord_berkley patchcords lib-util-c)
+addCompileSettings(cord_berkley)
+compileTargetAsC99(cord_berkley)
 
 if (${patchcords_ut})
     enable_testing()

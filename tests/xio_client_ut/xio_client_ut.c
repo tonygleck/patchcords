@@ -3,9 +3,11 @@
 #ifdef __cplusplus
 #include <cstdlib>
 #include <cstddef>
+#include <cstdint>
 #else
 #include <stdlib.h>
 #include <stddef.h>
+#include <stdint.h>
 #endif
 
 #include "testrunnerswitcher.h"
@@ -37,7 +39,8 @@ MOCKABLE_FUNCTION(, int, test_xio_open, XIO_IMPL_HANDLE, handle, ON_IO_OPEN_COMP
 MOCKABLE_FUNCTION(, int, test_xio_close, XIO_IMPL_HANDLE, handle, ON_IO_CLOSE_COMPLETE, on_io_close_complete, void*, callback_context);
 MOCKABLE_FUNCTION(, int, test_xio_send, XIO_IMPL_HANDLE, handle, const void*, buffer, size_t, size, ON_SEND_COMPLETE, on_send_complete, void*, callback_context);
 MOCKABLE_FUNCTION(, void, test_xio_process_item, XIO_IMPL_HANDLE, handle);
-MOCKABLE_FUNCTION(, const char*, test_xio_query_endpoint, XIO_IMPL_HANDLE, handle);
+MOCKABLE_FUNCTION(, const char*, test_xio_query_uri, XIO_IMPL_HANDLE, handle);
+MOCKABLE_FUNCTION(, uint16_t, test_xio_query_port, XIO_IMPL_HANDLE, handle);
 #undef ENABLE_MOCKS
 
 static const char* TEST_SEND_BUFFER = "Test send buffer";
@@ -98,7 +101,8 @@ const IO_INTERFACE_DESCRIPTION io_interface_description =
     test_xio_close,
     test_xio_send,
     test_xio_process_item,
-    test_xio_query_endpoint
+    test_xio_query_uri,
+    test_xio_query_port
 };
 
 static TEST_MUTEX_HANDLE test_serialize_mutex;
@@ -134,7 +138,7 @@ TEST_SUITE_INITIALIZE(suite_init)
     REGISTER_GLOBAL_MOCK_HOOK(test_xio_create, my_test_xio_create);
     REGISTER_GLOBAL_MOCK_HOOK(test_xio_destroy, my_test_xio_destroy);
 
-    REGISTER_GLOBAL_MOCK_RETURN(test_xio_query_endpoint, TEST_ENDPOINT);
+    REGISTER_GLOBAL_MOCK_RETURN(test_xio_query_uri, TEST_ENDPOINT);
 }
 
 TEST_SUITE_CLEANUP(suite_cleanup)
@@ -420,9 +424,10 @@ TEST_FUNCTION(xio_client_process_item_success)
 TEST_FUNCTION(xio_client_query_endpoint_NULL_fail)
 {
     // arrange
+    uint16_t port;
 
     // act
-    xio_client_query_endpoint(NULL);
+    xio_client_query_endpoint(NULL, &port);
 
     // assert
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
@@ -434,13 +439,35 @@ TEST_FUNCTION(xio_client_query_endpoint_success)
 {
     // arrange
     int parameters = 10;
+    uint16_t port;
     XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
     umock_c_reset_all_calls();
 
-    STRICT_EXPECTED_CALL(test_xio_query_endpoint(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(test_xio_query_port(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(test_xio_query_uri(IGNORED_PTR_ARG));
 
     // act
-    const char* endpoint = xio_client_query_endpoint(handle);
+    const char* endpoint = xio_client_query_endpoint(handle, &port);
+
+    // assert
+    ASSERT_ARE_EQUAL(char_ptr, TEST_ENDPOINT, endpoint);
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    xio_client_destroy(handle);
+}
+
+TEST_FUNCTION(xio_client_query_endpoint_no_port_success)
+{
+    // arrange
+    int parameters = 10;
+    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(test_xio_query_uri(IGNORED_PTR_ARG));
+
+    // act
+    const char* endpoint = xio_client_query_endpoint(handle, NULL);
 
     // assert
     ASSERT_ARE_EQUAL(char_ptr, TEST_ENDPOINT, endpoint);

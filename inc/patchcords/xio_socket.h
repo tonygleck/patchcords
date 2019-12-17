@@ -38,7 +38,8 @@ MOCKABLE_FUNCTION(, int, xio_socket_send, XIO_IMPL_HANDLE, xio, const void*, buf
 MOCKABLE_FUNCTION(, void, xio_socket_process_item, XIO_IMPL_HANDLE, xio);
 MOCKABLE_FUNCTION(, const IO_INTERFACE_DESCRIPTION*, xio_socket_get_interface);
 
-MOCKABLE_FUNCTION(, const char*, xio_socket_query_endpoint, XIO_IMPL_HANDLE, xio);
+MOCKABLE_FUNCTION(, const char*, xio_socket_query_uri, XIO_IMPL_HANDLE, xio);
+MOCKABLE_FUNCTION(, uint16_t, xio_socket_query_port, XIO_IMPL_HANDLE, xio);
 
 #ifdef __cplusplus
 }

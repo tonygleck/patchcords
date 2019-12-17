@@ -580,10 +580,10 @@ TEST_FUNCTION(xio_socket_send_success)
     xio_socket_destroy(handle);*/
 }
 
-TEST_FUNCTION(xio_socket_send_no_callback_success)
+/*TEST_FUNCTION(xio_socket_send_no_callback_success)
 {
     // arrange
-    /*SOCKETIO_CONFIG config = {0};
+    SOCKETIO_CONFIG config = {0};
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
@@ -606,7 +606,7 @@ TEST_FUNCTION(xio_socket_send_no_callback_success)
     // cleanup
     (void)xio_socket_close(handle, test_on_close_complete, NULL);
     xio_socket_process_item(handle);
-    xio_socket_destroy(handle);*/
+    xio_socket_destroy(handle);
 }
 
 TEST_FUNCTION(xio_socket_send_partial_send_success)
@@ -637,7 +637,7 @@ TEST_FUNCTION(xio_socket_send_partial_send_success)
     (void)xio_socket_close(handle, test_on_close_complete, NULL);
     xio_socket_process_item(handle);
     xio_socket_destroy(handle);
-}
+}*/
 
 TEST_FUNCTION(xio_socket_process_item_handle_NULL_success)
 {
@@ -714,7 +714,7 @@ TEST_FUNCTION(xio_socket_query_endpoint_NULL_fail)
     // arrange
 
     // act
-    xio_socket_query_endpoint(NULL);
+    xio_socket_query_uri(NULL);
 
     // assert
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
@@ -733,7 +733,7 @@ TEST_FUNCTION(xio_socket_query_endpoint_success)
     umock_c_reset_all_calls();
 
     // act
-    const char* endpoint = xio_socket_query_endpoint(handle);
+    const char* endpoint = xio_socket_query_uri(handle);
 
     // assert
     ASSERT_ARE_EQUAL(char_ptr, TEST_HOSTNAME, endpoint);

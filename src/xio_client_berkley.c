@@ -99,6 +99,8 @@ typedef struct PENDING_SEND_ITEM_TAG
 
 static void on_pending_list_item_destroy(void* user_ctx, void* remove_item)
 {
+    (void)user_ctx;
+    (void)remove_item;
     PENDING_SEND_ITEM* pending_item = (PENDING_SEND_ITEM*)remove_item;
     free(pending_item);
 }
@@ -110,10 +112,12 @@ static int indicate_error(SOCKET_INSTANCE* socket_impl, IO_ERROR_RESULT err_resu
     {
         socket_impl->on_io_error(socket_impl->on_io_error_context, err_result);
     }
+    return 0;
 }
 
 static int select_network_interface(SOCKET_INSTANCE* socket_impl)
 {
+    (void)socket_impl;
     int result = 0;
     return result;
 }
@@ -122,7 +126,7 @@ static void close_socket(SOCKET_INSTANCE* socket_impl)
 {
     (void)shutdown(socket_impl->socket, SHUT_RDWR);
     close(socket_impl->socket);
-    socket_impl->socket == INVALID_SOCKET;
+    socket_impl->socket = INVALID_SOCKET;
 
     if (socket_impl->on_io_close_complete != NULL)
     {
@@ -552,7 +556,7 @@ int xio_socket_send(XIO_IMPL_HANDLE xio, const void* buffer, size_t size, ON_SEN
             send_item->data_len = size;
 
             SOCKET_SEND_RESULT send_res = send_socket_data(socket_impl, send_item);
-            if (send_res == SOCKET_SEND_ERROR)
+            if (send_res != SEND_RESULT_SUCCESS)
             {
                 log_error("Failure attempting to send socket data");
                 free(send_item);
@@ -623,17 +627,34 @@ void xio_socket_process_item(XIO_IMPL_HANDLE xio)
     }
 }
 
-const char* xio_socket_query_endpoint(XIO_IMPL_HANDLE xio)
+const char* xio_socket_query_uri(XIO_IMPL_HANDLE xio)
 {
     const char* result;
     if (xio == NULL)
     {
+        log_error("Failure invalid parameter specified xio: NULL");
         result = NULL;
     }
     else
     {
         SOCKET_INSTANCE* socket_impl = (SOCKET_INSTANCE*)xio;
         result = socket_impl->hostname;
+    }
+    return result;
+}
+
+uint16_t xio_socket_query_port(XIO_IMPL_HANDLE xio)
+{
+    uint16_t result;
+    if (xio == NULL)
+    {
+        log_error("Failure invalid parameter specified xio: NULL");
+        result = 0;
+    }
+    else
+    {
+        SOCKET_INSTANCE* socket_impl = (SOCKET_INSTANCE*)xio;
+        result = socket_impl->port;
     }
     return result;
 }
@@ -646,7 +667,8 @@ static const IO_INTERFACE_DESCRIPTION socket_io_interface =
     xio_socket_close,
     xio_socket_send,
     xio_socket_process_item,
-    xio_socket_query_endpoint
+    xio_socket_query_uri,
+    xio_socket_query_port,
 };
 
 const IO_INTERFACE_DESCRIPTION* xio_socket_get_interface(void)

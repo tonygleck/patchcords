@@ -178,7 +178,7 @@ static void on_umock_c_error(UMOCK_C_ERROR_CODE error_code)
     ASSERT_FAIL("umock_c reported error :%s", MU_ENUM_TO_STRING(UMOCK_C_ERROR_CODE, error_code));
 }
 
-BEGIN_TEST_SUITE(xio_socket_berkley_ut)
+BEGIN_TEST_SUITE(xio_client_winsock_ut)
 
 TEST_SUITE_INITIALIZE(suite_init)
 {
@@ -963,4 +963,4 @@ TEST_FUNCTION(xio_socket_get_interface_success)
     // cleanup
 }
 
-END_TEST_SUITE(xio_socket_berkley_ut)
+END_TEST_SUITE(xio_client_winsock_ut)

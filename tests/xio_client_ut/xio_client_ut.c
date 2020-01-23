@@ -136,6 +136,7 @@ TEST_SUITE_INITIALIZE(suite_init)
     REGISTER_GLOBAL_MOCK_HOOK(mem_shim_free, my_mem_shim_free);
 
     REGISTER_GLOBAL_MOCK_HOOK(test_xio_create, my_test_xio_create);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(test_xio_create, NULL);
     REGISTER_GLOBAL_MOCK_HOOK(test_xio_destroy, my_test_xio_destroy);
 
     REGISTER_GLOBAL_MOCK_RETURN(test_xio_query_uri, TEST_ENDPOINT);
@@ -178,6 +179,36 @@ TEST_FUNCTION(xio_create_succeed)
 
     // cleanup
     xio_client_destroy(handle);
+}
+
+TEST_FUNCTION(xio_create_fail)
+{
+    // arrange
+    int parameters = 10;
+
+    int negativeTestsInitResult = umock_c_negative_tests_init();
+    ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
+
+    STRICT_EXPECTED_CALL(malloc(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(test_xio_create(&parameters));
+
+    umock_c_negative_tests_snapshot();
+
+    size_t count = umock_c_negative_tests_call_count();
+    for (size_t index = 0; index < count; index++)
+    {
+        umock_c_negative_tests_reset();
+        umock_c_negative_tests_fail_call(index);
+
+        // act
+        XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
+
+        // assert
+        ASSERT_IS_NULL(handle);
+    }
+
+    // cleanup
+    umock_c_negative_tests_deinit();
 }
 
 TEST_FUNCTION(xio_create_interface_desc_NULL_fail)

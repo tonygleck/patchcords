@@ -1,6 +1,6 @@
 #Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-cmake_minimum_required(VERSION 3.3.0)
+cmake_minimum_required(VERSION 3.5)
 
 #Use solution folders.
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
@@ -8,6 +8,14 @@ project(patchcords)
 
 option(patchcords_ut "Include unittest in build" OFF)
 option(patchcords_samples "Include samples in build" OFF)
+
+if (CMAKE_BUILD_TYPE MATCHES "Debug" AND NOT WIN32)
+    set(DEBUG_CONFIG ON)
+    set(ENABLE_COVERAGE ON)
+else()
+    set(ENABLE_COVERAGE OFF)
+    set(DEBUG_CONFIG OFF)
+endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/cmake_configs/proj_config.cmake")
 
@@ -47,9 +55,17 @@ compileTargetAsC99(patchcords)
 set(socket_berkley_h_files
     ./inc/patchcords/xio_socket.h
 )
-set(socket_berkley_c_files
-    ./src/xio_client_berkley.c
-)
+if (WIN32)
+    set(socket_berkley_c_files
+        ./src/xio_client_winsock.c
+    )
+endif()
+if (UNIX)
+    set(socket_berkley_c_files
+        ./src/xio_client_berkley.c
+    )
+endif()
+
 add_library(cord_berkley ${socket_berkley_c_files} ${socket_berkley_h_files})
 target_link_libraries(cord_berkley patchcords lib-util-c)
 addCompileSettings(cord_berkley)
@@ -57,8 +73,11 @@ compileTargetAsC99(cord_berkley)
 
 if (${patchcords_ut})
     enable_testing()
+    include (CTest)
 
     include("${CMAKE_CURRENT_LIST_DIR}/cmake_configs/proj_testing.cmake")
+
+    enable_coverage_testing()
 
     if ((NOT TARGET testrunnerswitcher) AND (EXISTS ${CMAKE_CURRENT_LIST_DIR}/deps/azure-c-testrunnerswitcher/CMakeLists.txt))
         add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/azure-c-testrunnerswitcher)

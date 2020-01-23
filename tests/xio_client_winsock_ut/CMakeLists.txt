@@ -5,14 +5,14 @@ cmake_minimum_required(VERSION 3.5)
 
 compileAsC11()
 
-set(theseTestsName xio_client_berkley_ut)
+set(theseTestsName xio_client_winsock_ut)
 
 set(${theseTestsName}_test_files
     ${theseTestsName}.c
 )
 
 set(${theseTestsName}_c_files
-    ../../src/xio_client_berkley.c
+    ../../src/xio_client_winsock.c
 )
 
 set(${theseTestsName}_h_files

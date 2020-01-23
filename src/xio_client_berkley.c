@@ -139,7 +139,7 @@ static int open_socket(SOCKET_INSTANCE* socket_impl)
     int result;
     int error_value;
     struct addrinfo addr_info_hint;
-    struct sockaddr_un socket_addr;
+    //struct sockaddr_un socket_addr;
     struct sockaddr* connect_addr = NULL;
     socklen_t connect_addr_len;
     struct addrinfo* addr_info_ip = NULL;
@@ -181,6 +181,9 @@ static int open_socket(SOCKET_INSTANCE* socket_impl)
     }
     else
     {
+            log_error("Domain Sockets not supported");
+            result = __LINE__;
+#if 0
         size_t hostname_len = strlen(socket_impl->hostname);
         if (hostname_len + 1 > sizeof(socket_addr.sun_path))
         {
@@ -203,6 +206,7 @@ static int open_socket(SOCKET_INSTANCE* socket_impl)
             connect_addr_len = sizeof(socket_addr);
             result = 0;
         }
+#endif
     }
 
     if (result == 0)
@@ -515,7 +519,6 @@ int xio_socket_close(XIO_IMPL_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_compl
         }
         else
         {
-            SOCKET_INSTANCE* socket_impl = (SOCKET_INSTANCE*)xio;
             socket_impl->current_state = IO_STATE_CLOSING;
             socket_impl->on_io_close_complete = on_io_close_complete;
             socket_impl->on_close_context = ctx;
@@ -622,7 +625,6 @@ void xio_socket_process_item(XIO_IMPL_HANDLE xio)
         }
         else
         {
-
         }
     }
 }

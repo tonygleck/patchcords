@@ -42,6 +42,10 @@ XIO_INSTANCE_HANDLE xio_client_create(const IO_INTERFACE_DESCRIPTION* io_interfa
                 result = NULL;
             }
         }
+        else
+        {
+            log_error("Failure allocating ");
+        }
     }
     return (XIO_INSTANCE_HANDLE)result;
 }

@@ -1,21 +1,18 @@
 # Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 function(addCompileSettings theTarget)
-if (MSVC)
-    target_compile_options(${theTarget} PRIVATE
-                -W4)
-    add_definitions(-D_CRT_SECURE_NO_WARNINGS)
-    # Make warning as error
-    add_definitions(/WX)
-else()
-    target_compile_options(${theTarget} PRIVATE
-                -Wall -Werror -Wextra)
-endif()
-# target_compile_options(${theTarget} PRIVATE
-#         $<$<OR:$<CXX_COMPILER_ID:Clang>, $<CXX_COMPILER_ID:AppleClang>, $<CXX_COMPILER_ID:GNU>>:
-#             -Wall -Werror>
-#         $<$<CXX_COMPILER_ID:MSVC>:
-#             -W4)
+    if (MSVC)
+        target_compile_options(${theTarget} PRIVATE -W4 /WX -D_CRT_SECURE_NO_WARNINGS)
+        target_compile_definitions(-D_CRT_SECURE_NO_WARNINGS)
+        # Make warning as error
+    else()
+        target_compile_options(${theTarget} PRIVATE -Wall -Werror -Wextra -Wshadow)
+        if (${DEBUG_CONFIG})
+            target_compile_options(${theTarget} PRIVATE -O3)
+        else()
+            target_compile_options(${theTarget} PRIVATE -O0)
+        endif()
+    endif()
 endfunction()
 
 include(CheckSymbolExists)
@@ -33,6 +30,17 @@ function(detect_architecture symbol arch)
             add_definitions(-DARCHITECTURE_${arch}=1)
         endif()
     endif()
+endfunction()
+
+function(compileTargetAsC99 theTarget)
+  if (CMAKE_VERSION VERSION_LESS "3.1")
+    if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+      set_target_properties(${theTarget} PROPERTIES COMPILE_FLAGS "--std=c99")
+    endif()
+  else()
+    set_target_properties(${theTarget} PROPERTIES C_STANDARD 99)
+    set_target_properties(${theTarget} PROPERTIES CXX_STANDARD 11)
+  endif()
 endfunction()
 
 macro(compileAsC11)

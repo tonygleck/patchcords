@@ -175,7 +175,7 @@ static TEST_MUTEX_HANDLE test_serialize_mutex;
 MU_DEFINE_ENUM_STRINGS(UMOCK_C_ERROR_CODE, UMOCK_C_ERROR_CODE_VALUES)
 static void on_umock_c_error(UMOCK_C_ERROR_CODE error_code)
 {
-    ASSERT_FAIL("umock_c reported error :%s", MU_ENUM_TO_STRING(UMOCK_C_ERROR_CODE, error_code));
+    ASSERT_FAIL("umock_c reported error: %s", MU_ENUM_TO_STRING(UMOCK_C_ERROR_CODE, error_code));
 }
 
 BEGIN_TEST_SUITE(xio_socket_berkley_ut)
@@ -194,7 +194,7 @@ TEST_SUITE_INITIALIZE(suite_init)
     REGISTER_UMOCK_ALIAS_TYPE(IO_OPEN_RESULT, int);
     REGISTER_UMOCK_ALIAS_TYPE(IO_SEND_RESULT, int);
     REGISTER_UMOCK_ALIAS_TYPE(IO_ERROR_RESULT, int);
-    REGISTER_UMOCK_ALIAS_TYPE(ssize_t, unsigned int);
+    REGISTER_UMOCK_ALIAS_TYPE(ssize_t, long);
 
     REGISTER_GLOBAL_MOCK_HOOK(mem_shim_malloc, my_mem_shim_malloc);
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(mem_shim_malloc, NULL);

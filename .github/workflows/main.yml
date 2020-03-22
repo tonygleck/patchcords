@@ -28,9 +28,5 @@ jobs:
       run: sudo apt-get install -y gcc valgrind cmake
 
     # Runs a single command using the runners shell
-    - name: Where Am I
-      run: pwd
-
-    # Runs a single command using the runners shell
     - name: Run a one-line script
-      run: scripts/build_converage.sh
+      run: ${{ GITHUB_WORKSPACE }}/scripts/build_coverage.sh

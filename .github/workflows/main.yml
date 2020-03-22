@@ -29,4 +29,4 @@ jobs:
 
     # Runs a single command using the runners shell
     - name: Run a one-line script
-      run: ${{ GITHUB_WORKSPACE }}/scripts/build_coverage.sh
+      run: ${{ $GITHUB_WORKSPACE }}/scripts/build_coverage.sh

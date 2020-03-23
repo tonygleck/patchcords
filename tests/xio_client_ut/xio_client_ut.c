@@ -167,7 +167,7 @@ TEST_FUNCTION(xio_create_succeed)
     // arrange
     int parameters = 10;
 
-    STRICT_EXPECTED_CALL(malloc(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
     STRICT_EXPECTED_CALL(test_xio_create(&parameters));
 
     // act
@@ -189,7 +189,7 @@ TEST_FUNCTION(xio_create_fail)
     int negativeTestsInitResult = umock_c_negative_tests_init();
     ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
 
-    STRICT_EXPECTED_CALL(malloc(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
     STRICT_EXPECTED_CALL(test_xio_create(&parameters));
 
     umock_c_negative_tests_snapshot();
@@ -233,8 +233,8 @@ TEST_FUNCTION(xio_client_destroy_success)
     XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
     umock_c_reset_all_calls();
 
-    STRICT_EXPECTED_CALL(test_xio_destroy(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(free(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(test_xio_destroy(IGNORED_ARG));
+    STRICT_EXPECTED_CALL(free(IGNORED_ARG));
 
     // act
     xio_client_destroy(handle);
@@ -279,7 +279,7 @@ TEST_FUNCTION(xio_client_open_success)
     XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
     umock_c_reset_all_calls();
 
-    STRICT_EXPECTED_CALL(test_xio_open(IGNORED_PTR_ARG, IGNORED_PTR_ARG, NULL, IGNORED_PTR_ARG, NULL, IGNORED_PTR_ARG, NULL));
+    STRICT_EXPECTED_CALL(test_xio_open(IGNORED_ARG, IGNORED_ARG, NULL, IGNORED_ARG, NULL, IGNORED_ARG, NULL));
 
     // act
     int result = xio_client_open(handle, test_on_io_open_complete, NULL, test_on_bytes_received, NULL, test_on_io_error, NULL);
@@ -299,7 +299,7 @@ TEST_FUNCTION(xio_client_open_fail)
     XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
     umock_c_reset_all_calls();
 
-    STRICT_EXPECTED_CALL(test_xio_open(IGNORED_PTR_ARG, IGNORED_PTR_ARG, NULL, IGNORED_PTR_ARG, NULL, IGNORED_PTR_ARG, NULL)).SetReturn(__LINE__);
+    STRICT_EXPECTED_CALL(test_xio_open(IGNORED_ARG, IGNORED_ARG, NULL, IGNORED_ARG, NULL, IGNORED_ARG, NULL)).SetReturn(__LINE__);
 
     // act
     int result = xio_client_open(handle, test_on_io_open_complete, NULL, test_on_bytes_received, NULL, test_on_io_error, NULL);
@@ -333,7 +333,7 @@ TEST_FUNCTION(xio_client_close_success)
     XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
     umock_c_reset_all_calls();
 
-    STRICT_EXPECTED_CALL(test_xio_close(IGNORED_PTR_ARG, test_on_io_close_complete, NULL));
+    STRICT_EXPECTED_CALL(test_xio_close(IGNORED_ARG, test_on_io_close_complete, NULL));
 
     // act
     int result = xio_client_close(handle, test_on_io_close_complete, NULL);
@@ -353,7 +353,7 @@ TEST_FUNCTION(xio_client_close_fail)
     XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
     umock_c_reset_all_calls();
 
-    STRICT_EXPECTED_CALL(test_xio_close(IGNORED_PTR_ARG, test_on_io_close_complete, NULL)).SetReturn(__LINE__);
+    STRICT_EXPECTED_CALL(test_xio_close(IGNORED_ARG, test_on_io_close_complete, NULL)).SetReturn(__LINE__);
 
     // act
     int result = xio_client_close(handle, test_on_io_close_complete, NULL);
@@ -387,7 +387,7 @@ TEST_FUNCTION(xio_client_send_success)
     XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
     umock_c_reset_all_calls();
 
-    STRICT_EXPECTED_CALL(test_xio_send(IGNORED_PTR_ARG, TEST_SEND_BUFFER, TEST_SEND_BUFFER_LEN, test_on_send_complete, NULL));
+    STRICT_EXPECTED_CALL(test_xio_send(IGNORED_ARG, TEST_SEND_BUFFER, TEST_SEND_BUFFER_LEN, test_on_send_complete, NULL));
 
     // act
     int result = xio_client_send(handle, TEST_SEND_BUFFER, TEST_SEND_BUFFER_LEN, test_on_send_complete, NULL);
@@ -407,7 +407,7 @@ TEST_FUNCTION(xio_client_send_fail)
     XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
     umock_c_reset_all_calls();
 
-    STRICT_EXPECTED_CALL(test_xio_send(IGNORED_PTR_ARG, TEST_SEND_BUFFER, TEST_SEND_BUFFER_LEN, test_on_send_complete, NULL)).SetReturn(__LINE__);
+    STRICT_EXPECTED_CALL(test_xio_send(IGNORED_ARG, TEST_SEND_BUFFER, TEST_SEND_BUFFER_LEN, test_on_send_complete, NULL)).SetReturn(__LINE__);
 
     // act
     int result = xio_client_send(handle, TEST_SEND_BUFFER, TEST_SEND_BUFFER_LEN, test_on_send_complete, NULL);
@@ -440,7 +440,7 @@ TEST_FUNCTION(xio_client_process_item_success)
     XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
     umock_c_reset_all_calls();
 
-    STRICT_EXPECTED_CALL(test_xio_process_item(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(test_xio_process_item(IGNORED_ARG));
 
     // act
     xio_client_process_item(handle);
@@ -474,8 +474,8 @@ TEST_FUNCTION(xio_client_query_endpoint_success)
     XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
     umock_c_reset_all_calls();
 
-    STRICT_EXPECTED_CALL(test_xio_query_port(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(test_xio_query_uri(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(test_xio_query_port(IGNORED_ARG));
+    STRICT_EXPECTED_CALL(test_xio_query_uri(IGNORED_ARG));
 
     // act
     const char* endpoint = xio_client_query_endpoint(handle, &port);
@@ -495,7 +495,7 @@ TEST_FUNCTION(xio_client_query_endpoint_no_port_success)
     XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
     umock_c_reset_all_calls();
 
-    STRICT_EXPECTED_CALL(test_xio_query_uri(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(test_xio_query_uri(IGNORED_ARG));
 
     // act
     const char* endpoint = xio_client_query_endpoint(handle, NULL);

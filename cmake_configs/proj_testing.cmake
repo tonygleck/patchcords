@@ -12,7 +12,6 @@ function(build_test_project whatIsBuilding folder)
 
     set(test_include_dir ${MICROMOCK_INC_FOLDER} ${TESTRUNNERSWITCHER_INC_FOLDER} ${CTEST_INC_FOLDER} ${UMOCK_C_INC_FOLDER})
     set(logging_files ${CMAKE_SOURCE_DIR}/deps/lib-util-c/src/app_logging.c)
-    include_directories(${test_include_dir})
     include_directories(${CMAKE_SOURCE_DIR}/deps/lib-util-c)
 
     if (WIN32)
@@ -20,9 +19,6 @@ function(build_test_project whatIsBuilding folder)
         add_definitions(-D_UNICODE)
         #windows needs this define
         add_definitions(-D_CRT_SECURE_NO_WARNINGS)
-
-        set_target_properties(${whatIsBuilding} PROPERTIES LINKER_LANGUAGE CXX)
-        set_target_properties(${whatIsBuilding} PROPERTIES FOLDER ${folder})
     else()
         find_program(MEMORYCHECK_COMMAND valgrind)
         set(MEMORYCHECK_COMMAND_OPTIONS "--trace-children=yes --leak-check=full" )
@@ -46,8 +42,11 @@ function(build_test_project whatIsBuilding folder)
     target_compile_definitions(${whatIsBuilding}_exe PUBLIC -DUSE_CTEST)
     target_include_directories(${whatIsBuilding}_exe PUBLIC ${test_include_dir})
 
-    target_link_libraries(${whatIsBuilding}_exe umock_c ctest testrunnerswitcher m)
-
+    target_link_libraries(${whatIsBuilding}_exe umock_c ctest testrunnerswitcher)
+    if (WIN32)
+    else()
+        target_link_libraries(${whatIsBuilding}_exe m)
+    endif()
     if (${ENABLE_COVERAGE})
         set_target_properties(${whatIsBuilding}_exe PROPERTIES COMPILE_FLAGS "-fprofile-arcs -ftest-coverage")
         target_link_libraries(${whatIsBuilding}_exe gcov)
@@ -55,7 +54,6 @@ function(build_test_project whatIsBuilding folder)
     endif()
 
     add_test(NAME ${whatIsBuilding} COMMAND $<TARGET_FILE:${whatIsBuilding}_exe>)
-
 endfunction()
 
 function(enable_coverage_testing)

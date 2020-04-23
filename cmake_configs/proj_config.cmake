@@ -3,7 +3,7 @@
 function(addCompileSettings theTarget)
     if (MSVC)
         target_compile_options(${theTarget} PRIVATE -W4 /WX -D_CRT_SECURE_NO_WARNINGS)
-        target_compile_definitions(-D_CRT_SECURE_NO_WARNINGS)
+        target_compile_definitions(${theTarget} PRIVATE -D_CRT_SECURE_NO_WARNINGS)
         # Make warning as error
     else()
         target_compile_options(${theTarget} PRIVATE -Wall -Werror -Wextra -Wshadow)

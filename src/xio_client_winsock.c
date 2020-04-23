@@ -8,12 +8,14 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
+
 #include <mstcpip.h>
 #ifdef AF_UNIX_ON_WINDOWS
 #include <afunix.h>
 #endif
 
 #include "lib-util-c/sys_debug_shim.h"
+#include "lib-util-c/crt_extensions.h"
 #include "lib-util-c/app_logging.h"
 #include "lib-util-c/item_list.h"
 
@@ -65,40 +67,15 @@ typedef struct SOCKET_INSTANCE_TAG
 
 typedef struct PENDING_SEND_ITEM_TAG
 {
-    const void* send_data;
+    const char* send_data;
     size_t data_len;
     ON_SEND_COMPLETE on_send_complete;
     void* send_ctx;
 } PENDING_SEND_ITEM;
 
-static int clone_string(char** target, const char* source)
-{
-    int result;
-    if (target == NULL || source == NULL)
-    {
-        log_error("Invalid parameter specified target: %p, source: %p", target, source);
-        result = __LINE__;
-    }
-    else
-    {
-        size_t length = strlen(source);
-        if ((*target = malloc(length+1)) == NULL)
-        {
-            log_error("Failure allocating target");
-            result = __LINE__;
-        }
-        else
-        {
-            memset(*target, 0, length+1);
-            memcpy(*target, source, length);
-            result = 0;
-        }
-    }
-    return result;
-}
-
 static void on_pending_list_item_destroy(void* user_ctx, void* remove_item)
 {
+    (void)user_ctx;
     PENDING_SEND_ITEM* pending_item = (PENDING_SEND_ITEM*)remove_item;
     free(pending_item);
 }
@@ -110,19 +87,21 @@ static int indicate_error(SOCKET_INSTANCE* socket_impl, IO_ERROR_RESULT err_resu
     {
         socket_impl->on_io_error(socket_impl->on_io_error_context, err_result);
     }
+    return 0;
 }
 
 static int select_network_interface(SOCKET_INSTANCE* socket_impl)
 {
+    (void)socket_impl;
     int result = 0;
     return result;
 }
 
 static void close_socket(SOCKET_INSTANCE* socket_impl)
 {
-    (void)shutdown(socket_impl->socket, SHUT_RDWR);
-    close(socket_impl->socket);
-    socket_impl->socket == INVALID_SOCKET;
+    (void)shutdown(socket_impl->socket, SD_BOTH);
+    closesocket(socket_impl->socket);
+    socket_impl->socket = INVALID_SOCKET;
 
     if (socket_impl->on_io_close_complete != NULL)
     {
@@ -135,9 +114,8 @@ static int open_socket(SOCKET_INSTANCE* socket_impl)
     int result;
     int error_value;
     struct addrinfo addr_info_hint;
-    struct sockaddr_un socket_addr;
     struct sockaddr* connect_addr = NULL;
-    socklen_t connect_addr_len;
+    socklen_t connect_addr_len = 0;
     struct addrinfo* addr_info_ip = NULL;
 
     if (select_network_interface(socket_impl) != 0)
@@ -177,7 +155,7 @@ static int open_socket(SOCKET_INSTANCE* socket_impl)
     }
     else
     {
-        size_t hostname_len = strlen(socket_impl->hostname);
+        /*size_t hostname_len = strlen(socket_impl->hostname);
         if (hostname_len + 1 > sizeof(socket_addr.sun_path))
         {
             log_error("Hostname %s is too long for a unix socket (max len = %lu)", socket_impl->hostname, (unsigned long)sizeof(socket_addr.sun_path));
@@ -198,16 +176,29 @@ static int open_socket(SOCKET_INSTANCE* socket_impl)
             connect_addr = (struct sockaddr*)&socket_addr;
             connect_addr_len = sizeof(socket_addr);
             result = 0;
-        }
+        }*/
+        connect_addr_len = 0;
+        result = 0;
     }
 
     if (result == 0)
     {
-        int flags;
+        u_long mode = 1;
 
-        if ((-1 == (flags = fcntl(socket_impl->socket, F_GETFL, 0))) || (fcntl(socket_impl->socket, F_SETFL, flags | O_NONBLOCK) == -1))
+        error_value = connect(socket_impl->socket, connect_addr, connect_addr_len);
+        if ((error_value != 0) && (errno != EINPROGRESS))
         {
-            log_error("Failure setting socket to async mode.");
+            // Todo: Convert error to an error message in cb
+            log_error("Failure: connect failure %d.", errno);
+            if (socket_impl->on_io_open_complete != NULL)
+            {
+                socket_impl->on_io_open_complete(socket_impl->on_io_open_complete_context, IO_OPEN_ERROR);
+            }
+            result = __LINE__;
+        }
+        else if (ioctlsocket(socket_impl->socket, FIONBIO, &mode) != 0)
+        {
+            log_error("Failure: ioctlsocket failure %d.", errno);
             if (socket_impl->on_io_open_complete != NULL)
             {
                 socket_impl->on_io_open_complete(socket_impl->on_io_open_complete_context, IO_OPEN_ERROR);
@@ -216,25 +207,11 @@ static int open_socket(SOCKET_INSTANCE* socket_impl)
         }
         else
         {
-            error_value = connect(socket_impl->socket, connect_addr, connect_addr_len);
-            if ((error_value != 0) && (errno != EINPROGRESS))
+            if (socket_impl->on_io_open_complete != NULL)
             {
-                // Todo: Convert error to an error message in cb
-                log_error("Failure: connect failure %d.", errno);
-                if (socket_impl->on_io_open_complete != NULL)
-                {
-                    socket_impl->on_io_open_complete(socket_impl->on_io_open_complete_context, IO_OPEN_ERROR);
-                }
-                result = __LINE__;
+                socket_impl->on_io_open_complete(socket_impl->on_io_open_complete_context, IO_OPEN_OK);
             }
-            else
-            {
-                if (socket_impl->on_io_open_complete != NULL)
-                {
-                    socket_impl->on_io_open_complete(socket_impl->on_io_open_complete_context, IO_OPEN_OK);
-                }
-                result = 0;
-            }
+            result = 0;
         }
     }
     if (addr_info_ip != NULL)
@@ -282,9 +259,7 @@ static int recv_socket_data(SOCKET_INSTANCE* socket_impl)
     }
     else
     {
-        ssize_t recv_res;
-
-        recv_res = recv(socket_impl->socket, socket_impl->recv_bytes, RECV_BYTES_MAX_VALUE, 0);
+        int recv_res = recv(socket_impl->socket, (char*)socket_impl->recv_bytes, RECV_BYTES_MAX_VALUE, 0);
         if (recv_res > 0)
         {
             socket_impl->on_bytes_received(socket_impl->on_bytes_received_context, socket_impl->recv_bytes, recv_res);
@@ -295,15 +270,11 @@ static int recv_socket_data(SOCKET_INSTANCE* socket_impl)
             indicate_error(socket_impl, IO_ERROR_SERVER_DISCONN);
             result = __LINE__;
         }
-        else if (recv_res < 0 && errno != EAGAIN)
-        {
-            log_error("Failure receiving data on the socket, errno: %d (%s)", errno, strerror(errno));
-            indicate_error(socket_impl, IO_ERROR_GENERAL);
-            result = __LINE__;
-        }
         else
         {
-            // errno is EAGAIN which mean give it a second
+            int last_sock_error = WSAGetLastError();
+            log_error("Failure receiving data on the socket, errno: %d (%s)", last_sock_error, "Failure");
+            indicate_error(socket_impl, IO_ERROR_GENERAL);
             result = __LINE__;
         }
     }
@@ -315,13 +286,25 @@ static SOCKET_SEND_RESULT send_socket_data(SOCKET_INSTANCE* socket_impl, PENDING
     SOCKET_SEND_RESULT result;
 
     // Send the current item
-    ssize_t send_res = send(socket_impl->socket, pending_item->send_data, pending_item->data_len, 0);
-    if ((send_res < 0) || ((size_t)send_res != pending_item->data_len))
+    int send_res = send(socket_impl->socket, pending_item->send_data, pending_item->data_len, 0);
+    if (send_res  != (int)pending_item->data_len)
     {
-        if (send_res == SOCKET_SEND_ERROR)
+        int last_sock_error = WSAGetLastError();
+        if (send_res == SOCKET_ERROR)
         {
-            if (errno == EAGAIN)
+            if (last_sock_error != WSAEWOULDBLOCK)
             {
+                // Failure happened
+                if (pending_item->on_send_complete != NULL)
+                {
+                    pending_item->on_send_complete(pending_item->send_ctx, IO_SEND_ERROR);
+                }
+                log_error("Failure sending data on the socket, errno: %d (%s)", last_sock_error, "Failure"); // last_sock_error
+                result = SEND_RESULT_ERROR;
+            }
+            else
+            {
+                // Queue it up for the next call
                 if (item_list_add_item(socket_impl->pending_list, pending_item) != 0)
                 {
                     if (pending_item->on_send_complete != NULL)
@@ -335,15 +318,6 @@ static SOCKET_SEND_RESULT send_socket_data(SOCKET_INSTANCE* socket_impl, PENDING
                 {
                     result = SEND_RESULT_WAIT;
                 }
-            }
-            else
-            {
-                if (pending_item->on_send_complete != NULL)
-                {
-                    pending_item->on_send_complete(pending_item->send_ctx, IO_SEND_ERROR);
-                }
-                log_error("Failure sending data on the socket, errno: %d (%s)", errno, strerror(errno));
-                result = SEND_RESULT_ERROR;
             }
         }
         else
@@ -412,9 +386,16 @@ static SOCKET_SEND_RESULT send_socket_cached_data(SOCKET_INSTANCE* socket_impl)
 XIO_IMPL_HANDLE xio_socket_create(const void* parameters)
 {
     SOCKET_INSTANCE* result;
+    WSADATA wsa_data;
+    int res_value;
     if (parameters == NULL)
     {
         log_error("Invalid parameter specified");
+        result = NULL;
+    }
+    else if ((res_value = WSAStartup(MAKEWORD(2, 2), &wsa_data)) != NO_ERROR)
+    {
+        log_error("WSAStartup failed with error: %d", res_value);
         result = NULL;
     }
     else if ((result = malloc(sizeof(SOCKET_INSTANCE))) == NULL)
@@ -511,7 +492,6 @@ int xio_socket_close(XIO_IMPL_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_compl
         }
         else
         {
-            SOCKET_INSTANCE* socket_impl = (SOCKET_INSTANCE*)xio;
             socket_impl->current_state = IO_STATE_CLOSING;
             socket_impl->on_io_close_complete = on_io_close_complete;
             socket_impl->on_close_context = ctx;
@@ -552,7 +532,7 @@ int xio_socket_send(XIO_IMPL_HANDLE xio, const void* buffer, size_t size, ON_SEN
             send_item->data_len = size;
 
             SOCKET_SEND_RESULT send_res = send_socket_data(socket_impl, send_item);
-            if (send_res == SOCKET_SEND_ERROR)
+            if (send_res != SEND_RESULT_SUCCESS)
             {
                 log_error("Failure attempting to send socket data");
                 free(send_item);
@@ -623,17 +603,34 @@ void xio_socket_process_item(XIO_IMPL_HANDLE xio)
     }
 }
 
-const char* xio_socket_query_endpoint(XIO_INSTANCE_HANDLE xio)
+const char* xio_socket_query_uri(XIO_IMPL_HANDLE xio)
 {
     const char* result;
     if (xio == NULL)
     {
+        log_error("Failure invalid parameter specified xio: NULL");
         result = NULL;
     }
     else
     {
         SOCKET_INSTANCE* socket_impl = (SOCKET_INSTANCE*)xio;
         result = socket_impl->hostname;
+    }
+    return result;
+}
+
+uint16_t xio_socket_query_port(XIO_IMPL_HANDLE xio)
+{
+    uint16_t result;
+    if (xio == NULL)
+    {
+        log_error("Failure invalid parameter specified xio: NULL");
+        result = 0;
+    }
+    else
+    {
+        SOCKET_INSTANCE* socket_impl = (SOCKET_INSTANCE*)xio;
+        result = socket_impl->port;
     }
     return result;
 }
@@ -646,6 +643,8 @@ static const IO_INTERFACE_DESCRIPTION socket_io_interface =
     xio_socket_close,
     xio_socket_send,
     xio_socket_process_item,
+    xio_socket_query_uri,
+    xio_socket_query_port,
 };
 
 const IO_INTERFACE_DESCRIPTION* xio_socket_get_interface(void)

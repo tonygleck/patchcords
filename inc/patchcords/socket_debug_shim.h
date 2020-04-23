@@ -16,6 +16,8 @@ extern "C" {
 #include "umock_c/umock_c_prod.h"
 #ifdef WIN32
     #include <winsock2.h>
+    #include <ws2tcpip.h>
+    #include <windows.h>
 #else
     #include <sys/types.h>
     #include <sys/socket.h>
@@ -45,7 +47,7 @@ MOCKABLE_FUNCTION(, ssize_t, socket_shim_recv, int, sock, void*, buf, size_t, le
 #endif
 
 #ifdef WIN32
-MOCKABLE_FUNCTION(, int, socket_shim_connect, SOCKET, sock, const sockaddr*, name, int, len);
+MOCKABLE_FUNCTION(, int, socket_shim_connect, SOCKET, sock, const struct sockaddr*, name, int, len);
 #else
 MOCKABLE_FUNCTION(, int, socket_shim_connect, int, sock, __CONST_SOCKADDR_ARG, addr, socklen_t, len);
 #endif
@@ -57,13 +59,13 @@ MOCKABLE_FUNCTION(, int, socket_shim_getaddrinfo, const char*, node, const char*
 #endif
 
 #ifdef WIN32
-MOCKABLE_FUNCTION(, int, socket_shim_shutdown, int, node, int, how);
+MOCKABLE_FUNCTION(, int, socket_shim_shutdown, SOCKET, node, int, how);
 #else
 MOCKABLE_FUNCTION(, int, socket_shim_shutdown, int, sockfd, int, how);
 #endif
 
 #ifdef WIN32
-MOCKABLE_FUNCTION(, int, socket_shim_close, int, sock);
+MOCKABLE_FUNCTION(, int, socket_shim_close, SOCKET, sock);
 #else
 MOCKABLE_FUNCTION(, int, socket_shim_close, int, sock);
 #endif
@@ -72,6 +74,12 @@ MOCKABLE_FUNCTION(, int, socket_shim_close, int, sock);
 MOCKABLE_FUNCTION(, void, socket_shim_freeaddrinfo, struct addrinfo*, res);
 #else
 MOCKABLE_FUNCTION(, void, socket_shim_freeaddrinfo, struct addrinfo*, res);
+#endif
+
+#ifdef WIN32
+MOCKABLE_FUNCTION(, int, socket_shim_ioctlsocket, SOCKET, s, long, cmd, u_long*, argp)
+MOCKABLE_FUNCTION(, int, socket_shim_wsastartup, WORD, wVersionRequested, LPWSADATA, lpWSAData);
+MOCKABLE_FUNCTION(, int, socket_shim_wsagetlasterror);
 #endif
 
 extern int socket_shim_fcntl(int __fd, int __cmd, ...);
@@ -87,10 +95,18 @@ MOCKABLE_FUNCTION(, void, socket_shim_reset);
 #define recv socket_shim_recv
 #define connect socket_shim_connect
 #define fcntl socket_shim_fcntl
-#define close socket_shim_close
 #define shutdown socket_shim_shutdown
 #define getaddrinfo socket_shim_getaddrinfo
 #define freeaddrinfo socket_shim_freeaddrinfo
+
+#ifdef WIN32
+#define closesocket socket_shim_close
+#define ioctlsocket socket_shim_ioctlsocket
+#define WSAStartup socket_shim_wsastartup
+#define WSAGetLastError socket_shim_wsagetlasterror
+#else
+#define close socket_shim_close
+#endif
 
 #else // USE_SOCKET_DEBUG_SHIM
 

@@ -1,11 +1,11 @@
 // Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-#include "testrunnerswitcher.h"
+#include "ctest.h"
 
 int main(void)
 {
     size_t failedTestCount = 0;
-    RUN_TEST_SUITE(xio_socket_winsock_ut, failedTestCount);
+    CTEST_RUN_TEST_SUITE(xio_client_winsock_ut, failedTestCount);
     return failedTestCount;
 }

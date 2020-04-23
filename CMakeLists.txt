@@ -52,24 +52,29 @@ addCompileSettings(patchcords)
 compileTargetAsC99(patchcords)
 
 # Berkley socket library
-set(socket_berkley_h_files
+set(socket_h_files
     ./inc/patchcords/xio_socket.h
 )
+set(socket_lib)
+set(dependent_libs)
 if (WIN32)
-    set(socket_berkley_c_files
+    set(socket_c_files
         ./src/xio_client_winsock.c
     )
+    set(socket_lib cord_winsock)
+    set(dependent_libs ws2_32)
 endif()
 if (UNIX)
-    set(socket_berkley_c_files
+    set(socket_c_files
         ./src/xio_client_berkley.c
     )
+    set(socket_lib cord_berkley)
 endif()
+add_library(${socket_lib} ${socket_c_files} ${socket_h_files})
+target_link_libraries(${socket_lib} patchcords lib-util-c ${dependent_libs})
 
-add_library(cord_berkley ${socket_berkley_c_files} ${socket_berkley_h_files})
-target_link_libraries(cord_berkley patchcords lib-util-c)
-addCompileSettings(cord_berkley)
-compileTargetAsC99(cord_berkley)
+addCompileSettings(${socket_lib})
+compileTargetAsC99(${socket_lib})
 
 if (${patchcords_ut})
     enable_testing()

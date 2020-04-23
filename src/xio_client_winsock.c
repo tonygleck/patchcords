@@ -8,6 +8,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
+
 #include <mstcpip.h>
 #ifdef AF_UNIX_ON_WINDOWS
 #include <afunix.h>
@@ -269,15 +270,11 @@ static int recv_socket_data(SOCKET_INSTANCE* socket_impl)
             indicate_error(socket_impl, IO_ERROR_SERVER_DISCONN);
             result = __LINE__;
         }
-        else if (recv_res < 0 && errno != EAGAIN)
-        {
-            log_error("Failure receiving data on the socket, errno: %d (%s)", errno, strerror(errno));
-            indicate_error(socket_impl, IO_ERROR_GENERAL);
-            result = __LINE__;
-        }
         else
         {
-            // errno is EAGAIN which mean give it a second
+            int last_sock_error = WSAGetLastError();
+            log_error("Failure receiving data on the socket, errno: %d (%s)", last_sock_error, "Failure");
+            indicate_error(socket_impl, IO_ERROR_GENERAL);
             result = __LINE__;
         }
     }
@@ -290,12 +287,24 @@ static SOCKET_SEND_RESULT send_socket_data(SOCKET_INSTANCE* socket_impl, PENDING
 
     // Send the current item
     int send_res = send(socket_impl->socket, pending_item->send_data, pending_item->data_len, 0);
-    if ((send_res < 0) || ((size_t)send_res != pending_item->data_len))
+    if (send_res  != (int)pending_item->data_len)
     {
-        if (send_res == SOCKET_SEND_ERROR)
+        int last_sock_error = WSAGetLastError();
+        if (send_res == SOCKET_ERROR)
         {
-            if (errno == EAGAIN)
+            if (last_sock_error != WSAEWOULDBLOCK)
             {
+                // Failure happened
+                if (pending_item->on_send_complete != NULL)
+                {
+                    pending_item->on_send_complete(pending_item->send_ctx, IO_SEND_ERROR);
+                }
+                log_error("Failure sending data on the socket, errno: %d (%s)", last_sock_error, "Failure"); // last_sock_error
+                result = SEND_RESULT_ERROR;
+            }
+            else
+            {
+                // Queue it up for the next call
                 if (item_list_add_item(socket_impl->pending_list, pending_item) != 0)
                 {
                     if (pending_item->on_send_complete != NULL)
@@ -309,15 +318,6 @@ static SOCKET_SEND_RESULT send_socket_data(SOCKET_INSTANCE* socket_impl, PENDING
                 {
                     result = SEND_RESULT_WAIT;
                 }
-            }
-            else
-            {
-                if (pending_item->on_send_complete != NULL)
-                {
-                    pending_item->on_send_complete(pending_item->send_ctx, IO_SEND_ERROR);
-                }
-                log_error("Failure sending data on the socket, errno: %d (%s)", errno, strerror(errno));
-                result = SEND_RESULT_ERROR;
             }
         }
         else

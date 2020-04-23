@@ -151,7 +151,16 @@ int socket_shim_fcntl(int __fd, int __cmd, ...)
 }
 
 #ifdef WIN32
-int socket_shim_close(int sock)
+int socket_shim_shutdown(SOCKET socket, int how)
+#else
+int socket_shim_shutdown(int socket, int how)
+#endif
+{
+    return shutdown(socket, how);
+}
+
+#ifdef WIN32
+int socket_shim_close(SOCKET sock)
 #else
 int socket_shim_close(int sock)
 #endif
@@ -171,6 +180,23 @@ void socket_shim_freeaddrinfo(struct addrinfo* res)
 {
     freeaddrinfo(res);
 }
+
+#ifdef WIN32
+int socket_shim_ioctlsocket(SOCKET s, long cmd, u_long* argp)
+{
+    return ioctlsocket(s, cmd, argp);
+}
+
+int socket_shim_wsastartup(WORD wVersionRequested, LPWSADATA lpWSAData)
+{
+    return WSAStartup(wVersionRequested, lpWSAData);
+}
+
+int socket_shim_wsagetlasterror(void)
+{
+    return WSAGetLastError();
+}
+#endif
 
 uint64_t socket_shim_get_bytes_sent()
 {

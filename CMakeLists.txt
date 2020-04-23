@@ -56,11 +56,13 @@ set(socket_h_files
     ./inc/patchcords/xio_socket.h
 )
 set(socket_lib)
+set(dependent_libs)
 if (WIN32)
     set(socket_c_files
         ./src/xio_client_winsock.c
     )
     set(socket_lib cord_winsock)
+    set(dependent_libs ws2_32)
 endif()
 if (UNIX)
     set(socket_c_files
@@ -69,7 +71,7 @@ if (UNIX)
     set(socket_lib cord_berkley)
 endif()
 add_library(${socket_lib} ${socket_c_files} ${socket_h_files})
-target_link_libraries(${socket_lib} patchcords lib-util-c)
+target_link_libraries(${socket_lib} patchcords lib-util-c ${dependent_libs})
 
 addCompileSettings(${socket_lib})
 compileTargetAsC99(${socket_lib})

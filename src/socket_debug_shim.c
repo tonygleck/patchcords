@@ -5,6 +5,9 @@
 
 #ifdef WIN32
     #include <winsock2.h>
+    #include <ws2tcpip.h>
+    #include <windows.h>
+    #include <mstcpip.h>
 #else
     #include <sys/types.h>
     #include <sys/socket.h>
@@ -88,7 +91,7 @@ ssize_t socket_shim_send(int sock, const void* buf, size_t len, int flags)
 }
 
 #ifdef WIN32
-int socket_shim_recv(SOCKET sock, char* buf, int len, int flags);
+int socket_shim_recv(SOCKET sock, char* buf, int len, int flags)
 #else
 ssize_t socket_shim_recv(int sock, void* buf, size_t len, int flags)
 #endif
@@ -121,7 +124,7 @@ ssize_t socket_shim_recv(int sock, void* buf, size_t len, int flags)
 }
 
 #ifdef WIN32
-int socket_shim_connect(SOCKET sock, const sockaddr* addr, int len)
+int socket_shim_connect(SOCKET sock, const struct sockaddr* addr, int len)
 #else
 int socket_shim_connect(int sock, __CONST_SOCKADDR_ARG addr, socklen_t len)
 #endif
@@ -148,12 +151,25 @@ int socket_shim_fcntl(int __fd, int __cmd, ...)
 }
 
 #ifdef WIN32
-int socket_shim_close(int sock)
+int socket_shim_shutdown(SOCKET socket, int how)
+#else
+int socket_shim_shutdown(int socket, int how)
+#endif
+{
+    return shutdown(socket, how);
+}
+
+#ifdef WIN32
+int socket_shim_close(SOCKET sock)
 #else
 int socket_shim_close(int sock)
 #endif
 {
+#ifdef WIN32
+    return closesocket(sock);
+#else
     return close(sock);
+#endif
 }
 
 #ifdef WIN32
@@ -164,6 +180,23 @@ void socket_shim_freeaddrinfo(struct addrinfo* res)
 {
     freeaddrinfo(res);
 }
+
+#ifdef WIN32
+int socket_shim_ioctlsocket(SOCKET s, long cmd, u_long* argp)
+{
+    return ioctlsocket(s, cmd, argp);
+}
+
+int socket_shim_wsastartup(WORD wVersionRequested, LPWSADATA lpWSAData)
+{
+    return WSAStartup(wVersionRequested, lpWSAData);
+}
+
+int socket_shim_wsagetlasterror(void)
+{
+    return WSAGetLastError();
+}
+#endif
 
 uint64_t socket_shim_get_bytes_sent()
 {

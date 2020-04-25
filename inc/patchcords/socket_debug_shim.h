@@ -77,6 +77,24 @@ MOCKABLE_FUNCTION(, void, socket_shim_freeaddrinfo, struct addrinfo*, res);
 #endif
 
 #ifdef WIN32
+MOCKABLE_FUNCTION(, int, socket_shim_bind, int, __fd, __CONST_SOCKADDR_ARG, __addr, socklen_t, __len);
+#else
+MOCKABLE_FUNCTION(, int, socket_shim_bind, int, __fd, __CONST_SOCKADDR_ARG, __addr, socklen_t, __len);
+#endif
+
+#ifdef WIN32
+MOCKABLE_FUNCTION(, int, socket_shim_listen, int, __fd, int, __n);
+#else
+MOCKABLE_FUNCTION(, int, socket_shim_listen, int, __fd, int, __n);
+#endif
+
+#ifdef WIN32
+MOCKABLE_FUNCTION(, int, socket_shim_accept, int, __fd, __SOCKADDR_ARG, __addr, socklen_t*, __addr_len);
+#else
+MOCKABLE_FUNCTION(, int, socket_shim_accept, int, __fd, __SOCKADDR_ARG, __addr, socklen_t*, __addr_len);
+#endif
+
+#ifdef WIN32
 MOCKABLE_FUNCTION(, int, socket_shim_ioctlsocket, SOCKET, s, long, cmd, u_long*, argp)
 MOCKABLE_FUNCTION(, int, socket_shim_wsastartup, WORD, wVersionRequested, LPWSADATA, lpWSAData);
 MOCKABLE_FUNCTION(, int, socket_shim_wsagetlasterror);
@@ -98,6 +116,10 @@ MOCKABLE_FUNCTION(, void, socket_shim_reset);
 #define shutdown socket_shim_shutdown
 #define getaddrinfo socket_shim_getaddrinfo
 #define freeaddrinfo socket_shim_freeaddrinfo
+#define bind socket_shim_bind
+#define listen socket_shim_listen
+#define accept socket_shim_accept
+
 
 #ifdef WIN32
 #define closesocket socket_shim_close

@@ -55,6 +55,7 @@ typedef enum SOCKET_STATE_TAG
     IO_STATE_CLOSING,
     IO_STATE_OPENING,
     IO_STATE_OPEN,
+    IO_STATE_LISTENING,
     IO_STATE_ERROR
 } SOCKET_STATE;
 
@@ -87,6 +88,9 @@ typedef struct SOCKET_INSTANCE_TAG
     void* on_io_error_context;
     ON_IO_CLOSE_COMPLETE on_io_close_complete;
     void* on_close_context;
+
+    ON_INCOMING_CONNECT on_incoming_conn;
+    void* on_incoming_ctx;
 } SOCKET_INSTANCE;
 
 typedef struct PENDING_SEND_ITEM_TAG
@@ -100,7 +104,6 @@ typedef struct PENDING_SEND_ITEM_TAG
 static void on_pending_list_item_destroy(void* user_ctx, void* remove_item)
 {
     (void)user_ctx;
-    (void)remove_item;
     PENDING_SEND_ITEM* pending_item = (PENDING_SEND_ITEM*)remove_item;
     free(pending_item);
 }
@@ -124,13 +127,16 @@ static int select_network_interface(SOCKET_INSTANCE* socket_impl)
 
 static void close_socket(SOCKET_INSTANCE* socket_impl)
 {
-    (void)shutdown(socket_impl->socket, SHUT_RDWR);
-    close(socket_impl->socket);
-    socket_impl->socket = INVALID_SOCKET;
-
-    if (socket_impl->on_io_close_complete != NULL)
+    if (socket_impl->socket != INVALID_SOCKET)
     {
-        socket_impl->on_io_close_complete(socket_impl->on_close_context);
+        (void)shutdown(socket_impl->socket, SHUT_RDWR);
+        close(socket_impl->socket);
+        socket_impl->socket = INVALID_SOCKET;
+
+        if (socket_impl->on_io_close_complete != NULL)
+        {
+            socket_impl->on_io_close_complete(socket_impl->on_close_context);
+        }
     }
 }
 
@@ -417,21 +423,15 @@ static SOCKET_SEND_RESULT send_socket_cached_data(SOCKET_INSTANCE* socket_impl)
     return result;
 }
 
-XIO_IMPL_HANDLE xio_socket_create(const void* parameters)
+static SOCKET_INSTANCE* create_socket_info(const SOCKETIO_CONFIG* config)
 {
     SOCKET_INSTANCE* result;
-    if (parameters == NULL)
-    {
-        log_error("Invalid parameter specified");
-        result = NULL;
-    }
-    else if ((result = malloc(sizeof(SOCKET_INSTANCE))) == NULL)
+    if ((result = malloc(sizeof(SOCKET_INSTANCE))) == NULL)
     {
         log_error("Failure allocating socket instance");
     }
     else
     {
-        const SOCKETIO_CONFIG* config = (const SOCKETIO_CONFIG*)parameters;
         memset(result, 0, sizeof(SOCKET_INSTANCE));
         result->port = config->port;
         result->address_type = config->address_type;
@@ -443,13 +443,40 @@ XIO_IMPL_HANDLE xio_socket_create(const void* parameters)
             free(result);
             result = NULL;
         }
-        else if (clone_string(&result->hostname, config->hostname) != 0)
+        else if (config->hostname != NULL && clone_string(&result->hostname, config->hostname) != 0)
         {
             log_error("Failure cloning hostname value");
             item_list_destroy(result->pending_list);
             free(result);
             result = NULL;
         }
+        else
+        {
+            if (config->accepted_socket != NULL)
+            {
+                result->socket = (int)*((int*)config->accepted_socket);
+                result->current_state = IO_STATE_OPEN;
+            }
+            else
+            {
+                result->socket = INVALID_SOCKET;
+            }
+        }
+    }
+    return result;
+}
+
+XIO_IMPL_HANDLE xio_socket_create(const void* parameters)
+{
+    SOCKET_INSTANCE* result;
+    if (parameters == NULL)
+    {
+        log_error("Invalid parameter specified");
+        result = NULL;
+    }
+    else
+    {
+        result = create_socket_info((const SOCKETIO_CONFIG*)parameters);
     }
     return (XIO_IMPL_HANDLE)result;
 }
@@ -459,7 +486,11 @@ void xio_socket_destroy(XIO_IMPL_HANDLE xio)
     if (xio != NULL)
     {
         SOCKET_INSTANCE* socket_impl = (SOCKET_INSTANCE*)xio;
-        free(socket_impl->hostname);
+        if (socket_impl->hostname != NULL)
+        {
+            free(socket_impl->hostname);
+        }
+        //close_socket(socket_impl);
         item_list_destroy(socket_impl->pending_list);
         free(socket_impl);
     }
@@ -496,6 +527,73 @@ int xio_socket_open(XIO_IMPL_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete
             socket_impl->on_io_error = on_io_error;
             socket_impl->on_io_error_context = on_io_error_context;
             result = 0;
+        }
+    }
+    return result;
+}
+
+int xio_socket_listen(XIO_IMPL_HANDLE xio, ON_INCOMING_CONNECT incoming_conn_cb, void* user_ctx)
+{
+    uint16_t result;
+    if (xio == NULL || incoming_conn_cb == NULL)
+    {
+        log_error("Failure invalid parameter specified xio: %p, incoming_conn_cb: %p", xio, incoming_conn_cb);
+        result = __LINE__;
+    }
+    else
+    {
+        int flags;
+        SOCKET_INSTANCE* socket_impl = (SOCKET_INSTANCE*)xio;
+        (void)user_ctx;
+        if (socket_impl->current_state == IO_STATE_OPENING || socket_impl->current_state == IO_STATE_OPEN)
+        {
+            log_error("Socket is in invalid state to open");
+            result = __LINE__;
+        }
+        else if (socket_impl->address_type != ADDRESS_TYPE_IP)
+        {
+            log_error("Socket is in an invalid state");
+            result = __LINE__;
+        }
+        else if (construct_socket_object(socket_impl) != 0)
+        {
+            log_error("Failure constructing socket");
+            result = __LINE__;
+        }
+        else if ((-1 == (flags = fcntl(socket_impl->socket, F_GETFL, 0))) ||
+                (fcntl(socket_impl->socket, F_SETFL, flags | O_NONBLOCK) == -1))
+        {
+            log_error("Failure Setting unblocking socket");
+            close_socket(socket_impl);
+            result = __LINE__;
+        }
+        else
+        {
+            struct sockaddr_in serv_addr = {0};
+            serv_addr.sin_family = AF_INET;
+            serv_addr.sin_addr.s_addr = INADDR_ANY;
+            serv_addr.sin_port = htons(socket_impl->port);
+
+            // bind the host address using bind() call
+            if (bind(socket_impl->socket, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0)
+            {
+                log_error("Failure binding to socket address");
+                close_socket(socket_impl);
+                result = __LINE__;
+            }
+            else if (listen(socket_impl->socket, SOMAXCONN) < 0)
+            {
+                log_error("Failure listening to incoming connection");
+                close_socket(socket_impl);
+                result = __LINE__;
+            }
+            else
+            {
+                socket_impl->current_state = IO_STATE_LISTENING;
+                socket_impl->on_incoming_conn = incoming_conn_cb;
+                socket_impl->on_incoming_ctx = user_ctx;
+                result = 0;
+            }
         }
     }
     return result;
@@ -559,7 +657,7 @@ int xio_socket_send(XIO_IMPL_HANDLE xio, const void* buffer, size_t size, ON_SEN
             send_item->data_len = size;
 
             SOCKET_SEND_RESULT send_res = send_socket_data(socket_impl, send_item);
-            if (send_res != SEND_RESULT_SUCCESS)
+            if (send_res == SEND_RESULT_ERROR)
             {
                 log_error("Failure attempting to send socket data");
                 free(send_item);
@@ -585,7 +683,6 @@ void xio_socket_process_item(XIO_IMPL_HANDLE xio)
     if (xio != NULL)
     {
         SOCKET_INSTANCE* socket_impl = (SOCKET_INSTANCE*)xio;
-
         if (socket_impl->current_state == IO_STATE_OPENING)
         {
             // Open the socket
@@ -622,6 +719,31 @@ void xio_socket_process_item(XIO_IMPL_HANDLE xio)
                     cont_process_loop = false;
                 }
             } while (cont_process_loop);
+        }
+        else if (socket_impl->current_state == IO_STATE_LISTENING)
+        {
+            struct sockaddr_in cli_addr;
+            socklen_t client_len = sizeof(cli_addr);
+            // Accept actual connection from the client
+            int accepted_socket = accept(socket_impl->socket, (struct sockaddr *)&cli_addr, &client_len);
+            if (accepted_socket != -1)
+            {
+                int flags;
+                if ((-1 == (flags = fcntl(accepted_socket, F_GETFL, 0))) ||
+                    (fcntl(accepted_socket, F_SETFL, flags | O_NONBLOCK) == -1))
+                {
+                    log_error("Failure setting accepted socket to non blocking");
+                    (void)shutdown(accepted_socket, SHUT_RDWR);
+                    close(accepted_socket);
+                }
+                else
+                {
+                    SOCKETIO_CONFIG config = {0};
+                    config.port = cli_addr.sin_port;
+                    config.accepted_socket = &accepted_socket;
+                    socket_impl->on_incoming_conn(socket_impl->on_incoming_ctx, &config);
+                }
+            }
         }
         else
         {
@@ -671,6 +793,7 @@ static const IO_INTERFACE_DESCRIPTION socket_io_interface =
     xio_socket_process_item,
     xio_socket_query_uri,
     xio_socket_query_port,
+    xio_socket_listen
 };
 
 const IO_INTERFACE_DESCRIPTION* xio_socket_get_interface(void)

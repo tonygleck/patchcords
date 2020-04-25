@@ -42,7 +42,7 @@ function(build_test_project whatIsBuilding folder)
     target_compile_definitions(${whatIsBuilding}_exe PUBLIC -DUSE_CTEST)
     target_include_directories(${whatIsBuilding}_exe PUBLIC ${test_include_dir})
 
-    target_link_libraries(${whatIsBuilding}_exe umock_c ctest testrunnerswitcher)
+    target_link_libraries(${whatIsBuilding}_exe umock_c ctest)
     if (WIN32)
     else()
         target_link_libraries(${whatIsBuilding}_exe m)

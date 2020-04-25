@@ -10,9 +10,10 @@
 #include <stdint.h>
 #endif
 
-#include "testrunnerswitcher.h"
+#include "ctest.h"
 #include "azure_macro_utils/macro_utils.h"
 #include "umock_c/umock_c.h"
+#include "umock_c/umock_c_prod.h"
 
 #include "umock_c/umock_c_negative_tests.h"
 #include "umock_c/umocktypes_charptr.h"
@@ -41,6 +42,8 @@ MOCKABLE_FUNCTION(, int, test_xio_send, XIO_IMPL_HANDLE, handle, const void*, bu
 MOCKABLE_FUNCTION(, void, test_xio_process_item, XIO_IMPL_HANDLE, handle);
 MOCKABLE_FUNCTION(, const char*, test_xio_query_uri, XIO_IMPL_HANDLE, handle);
 MOCKABLE_FUNCTION(, uint16_t, test_xio_query_port, XIO_IMPL_HANDLE, handle);
+MOCKABLE_FUNCTION(, int, test_xio_client_listen, XIO_IMPL_HANDLE, handle, ON_INCOMING_CONNECT, incoming_conn, void*, user_ctx);
+
 #undef ENABLE_MOCKS
 
 static const char* TEST_SEND_BUFFER = "Test send buffer";
@@ -89,6 +92,12 @@ extern "C" {
         (void)context;
         (void)send_result;
     }
+
+    static void test_on_accept_conn(void* context, const SOCKETIO_CONFIG* config)
+    {
+
+    }
+
 #ifdef __cplusplus
 }
 #endif
@@ -102,24 +111,20 @@ const IO_INTERFACE_DESCRIPTION io_interface_description =
     test_xio_send,
     test_xio_process_item,
     test_xio_query_uri,
-    test_xio_query_port
+    test_xio_query_port,
+    test_xio_client_listen
 };
-
-static TEST_MUTEX_HANDLE test_serialize_mutex;
 
 MU_DEFINE_ENUM_STRINGS(UMOCK_C_ERROR_CODE, UMOCK_C_ERROR_CODE_VALUES)
 static void on_umock_c_error(UMOCK_C_ERROR_CODE error_code)
 {
-    ASSERT_FAIL("umock_c reported error :%s", MU_ENUM_TO_STRING(UMOCK_C_ERROR_CODE, error_code));
+    CTEST_ASSERT_FAIL("umock_c reported error :%s", MU_ENUM_TO_STRING(UMOCK_C_ERROR_CODE, error_code));
 }
 
-BEGIN_TEST_SUITE(xio_client_ut)
+CTEST_BEGIN_TEST_SUITE(xio_client_ut)
 
-TEST_SUITE_INITIALIZE(suite_init)
+CTEST_SUITE_INITIALIZE()
 {
-    test_serialize_mutex = TEST_MUTEX_CREATE();
-    ASSERT_IS_NOT_NULL(test_serialize_mutex);
-
     umock_c_init(on_umock_c_error);
 
     REGISTER_UMOCK_ALIAS_TYPE(XIO_IMPL_HANDLE, void*);
@@ -128,6 +133,7 @@ TEST_SUITE_INITIALIZE(suite_init)
     REGISTER_UMOCK_ALIAS_TYPE(ON_SEND_COMPLETE, void*);
     REGISTER_UMOCK_ALIAS_TYPE(ON_BYTES_RECEIVED, void*);
     REGISTER_UMOCK_ALIAS_TYPE(ON_IO_ERROR, void*);
+    REGISTER_UMOCK_ALIAS_TYPE(ON_INCOMING_CONNECT, void*);
 
     //REGISTER_GLOBAL_MOCK_HOOK(item_destroy_callback, my_item_destroy_cb);
 
@@ -142,27 +148,21 @@ TEST_SUITE_INITIALIZE(suite_init)
     REGISTER_GLOBAL_MOCK_RETURN(test_xio_query_uri, TEST_ENDPOINT);
 }
 
-TEST_SUITE_CLEANUP(suite_cleanup)
+CTEST_SUITE_CLEANUP()
 {
     umock_c_deinit();
-    TEST_MUTEX_DESTROY(test_serialize_mutex);
 }
 
-TEST_FUNCTION_INITIALIZE(method_init)
+CTEST_FUNCTION_INITIALIZE()
 {
-    if (TEST_MUTEX_ACQUIRE(g_testByTest))
-    {
-        ASSERT_FAIL("Could not acquire test serialization mutex.");
-    }
     umock_c_reset_all_calls();
 }
 
-TEST_FUNCTION_CLEANUP(method_cleanup)
+CTEST_FUNCTION_CLEANUP()
 {
-    TEST_MUTEX_RELEASE(g_testByTest);
 }
 
-TEST_FUNCTION(xio_create_succeed)
+CTEST_FUNCTION(xio_create_succeed)
 {
     // arrange
     int parameters = 10;
@@ -174,20 +174,20 @@ TEST_FUNCTION(xio_create_succeed)
     XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
 
     // assert
-    ASSERT_IS_NOT_NULL(handle);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    CTEST_ASSERT_IS_NOT_NULL(handle);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
     xio_client_destroy(handle);
 }
 
-TEST_FUNCTION(xio_create_fail)
+CTEST_FUNCTION(xio_create_fail)
 {
     // arrange
     int parameters = 10;
 
     int negativeTestsInitResult = umock_c_negative_tests_init();
-    ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
+    CTEST_ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
 
     STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
     STRICT_EXPECTED_CALL(test_xio_create(&parameters));
@@ -204,14 +204,14 @@ TEST_FUNCTION(xio_create_fail)
         XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
 
         // assert
-        ASSERT_IS_NULL(handle);
+        CTEST_ASSERT_IS_NULL(handle);
     }
 
     // cleanup
     umock_c_negative_tests_deinit();
 }
 
-TEST_FUNCTION(xio_create_interface_desc_NULL_fail)
+CTEST_FUNCTION(xio_create_interface_desc_NULL_fail)
 {
     // arrange
     int parameters = 10;
@@ -220,13 +220,13 @@ TEST_FUNCTION(xio_create_interface_desc_NULL_fail)
     XIO_INSTANCE_HANDLE handle = xio_client_create(NULL, &parameters);
 
     // assert
-    ASSERT_IS_NULL(handle);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    CTEST_ASSERT_IS_NULL(handle);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
 }
 
-TEST_FUNCTION(xio_client_destroy_success)
+CTEST_FUNCTION(xio_client_destroy_success)
 {
     // arrange
     int parameters = 10;
@@ -240,12 +240,12 @@ TEST_FUNCTION(xio_client_destroy_success)
     xio_client_destroy(handle);
 
     // assert
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
 }
 
-TEST_FUNCTION(xio_client_destroy_handle_NULL_fail)
+CTEST_FUNCTION(xio_client_destroy_handle_NULL_fail)
 {
     // arrange
 
@@ -253,66 +253,80 @@ TEST_FUNCTION(xio_client_destroy_handle_NULL_fail)
     xio_client_destroy(NULL);
 
     // assert
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
 }
 
-TEST_FUNCTION(xio_client_open_handle_NULL_fail)
+CTEST_FUNCTION(xio_client_open_handle_NULL_fail)
 {
     // arrange
+    XIO_CLIENT_CALLBACK_INFO client_callbacks = { 0 };
+    client_callbacks.on_bytes_received = test_on_bytes_received;
+    client_callbacks.on_io_error = test_on_io_error;
+    client_callbacks.on_io_open_complete = test_on_io_open_complete;
 
     // act
-    int result = xio_client_open(NULL, test_on_io_open_complete, NULL, test_on_bytes_received, NULL, test_on_io_error, NULL);
+    int result = xio_client_open(NULL, &client_callbacks);
 
     // assert
-    ASSERT_ARE_NOT_EQUAL(int, 0, result);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
 }
 
-TEST_FUNCTION(xio_client_open_success)
+CTEST_FUNCTION(xio_client_open_success)
 {
     // arrange
     int parameters = 10;
+    XIO_CLIENT_CALLBACK_INFO client_callbacks = { 0 };
+    client_callbacks.on_bytes_received = test_on_bytes_received;
+    client_callbacks.on_io_error = test_on_io_error;
+    client_callbacks.on_io_open_complete = test_on_io_open_complete;
+
     XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(test_xio_open(IGNORED_ARG, IGNORED_ARG, NULL, IGNORED_ARG, NULL, IGNORED_ARG, NULL));
 
     // act
-    int result = xio_client_open(handle, test_on_io_open_complete, NULL, test_on_bytes_received, NULL, test_on_io_error, NULL);
+    int result = xio_client_open(handle, &client_callbacks);
 
     // assert
-    ASSERT_ARE_EQUAL(int, 0, result);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    CTEST_ASSERT_ARE_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
     xio_client_destroy(handle);
 }
 
-TEST_FUNCTION(xio_client_open_fail)
+CTEST_FUNCTION(xio_client_open_fail)
 {
     // arrange
     int parameters = 10;
+    XIO_CLIENT_CALLBACK_INFO client_callbacks = { 0 };
+    client_callbacks.on_bytes_received = test_on_bytes_received;
+    client_callbacks.on_io_error = test_on_io_error;
+    client_callbacks.on_io_open_complete = test_on_io_open_complete;
+
     XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(test_xio_open(IGNORED_ARG, IGNORED_ARG, NULL, IGNORED_ARG, NULL, IGNORED_ARG, NULL)).SetReturn(__LINE__);
 
     // act
-    int result = xio_client_open(handle, test_on_io_open_complete, NULL, test_on_bytes_received, NULL, test_on_io_error, NULL);
+    int result = xio_client_open(handle, &client_callbacks);
 
     // assert
-    ASSERT_ARE_NOT_EQUAL(int, 0, result);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
     xio_client_destroy(handle);
 }
 
-TEST_FUNCTION(xio_client_close_handle_NULL_fail)
+CTEST_FUNCTION(xio_client_close_handle_NULL_fail)
 {
     // arrange
 
@@ -320,13 +334,13 @@ TEST_FUNCTION(xio_client_close_handle_NULL_fail)
     int result = xio_client_close(NULL, test_on_io_close_complete, NULL);
 
     // assert
-    ASSERT_ARE_NOT_EQUAL(int, 0, result);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
 }
 
-TEST_FUNCTION(xio_client_close_success)
+CTEST_FUNCTION(xio_client_close_success)
 {
     // arrange
     int parameters = 10;
@@ -339,14 +353,14 @@ TEST_FUNCTION(xio_client_close_success)
     int result = xio_client_close(handle, test_on_io_close_complete, NULL);
 
     // assert
-    ASSERT_ARE_EQUAL(int, 0, result);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    CTEST_ASSERT_ARE_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
     xio_client_destroy(handle);
 }
 
-TEST_FUNCTION(xio_client_close_fail)
+CTEST_FUNCTION(xio_client_close_fail)
 {
     // arrange
     int parameters = 10;
@@ -359,14 +373,14 @@ TEST_FUNCTION(xio_client_close_fail)
     int result = xio_client_close(handle, test_on_io_close_complete, NULL);
 
     // assert
-    ASSERT_ARE_NOT_EQUAL(int, 0, result);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
     xio_client_destroy(handle);
 }
 
-TEST_FUNCTION(xio_client_send_handle_NULL_fail)
+CTEST_FUNCTION(xio_client_send_handle_NULL_fail)
 {
     // arrange
 
@@ -374,13 +388,13 @@ TEST_FUNCTION(xio_client_send_handle_NULL_fail)
     int result = xio_client_send(NULL, TEST_SEND_BUFFER, TEST_SEND_BUFFER_LEN, test_on_send_complete, NULL);
 
     // assert
-    ASSERT_ARE_NOT_EQUAL(int, 0, result);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
 }
 
-TEST_FUNCTION(xio_client_send_success)
+CTEST_FUNCTION(xio_client_send_success)
 {
     // arrange
     int parameters = 10;
@@ -393,14 +407,14 @@ TEST_FUNCTION(xio_client_send_success)
     int result = xio_client_send(handle, TEST_SEND_BUFFER, TEST_SEND_BUFFER_LEN, test_on_send_complete, NULL);
 
     // assert
-    ASSERT_ARE_EQUAL(int, 0, result);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    CTEST_ASSERT_ARE_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
     xio_client_destroy(handle);
 }
 
-TEST_FUNCTION(xio_client_send_fail)
+CTEST_FUNCTION(xio_client_send_fail)
 {
     // arrange
     int parameters = 10;
@@ -413,14 +427,14 @@ TEST_FUNCTION(xio_client_send_fail)
     int result = xio_client_send(handle, TEST_SEND_BUFFER, TEST_SEND_BUFFER_LEN, test_on_send_complete, NULL);
 
     // assert
-    ASSERT_ARE_NOT_EQUAL(int, 0, result);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
     xio_client_destroy(handle);
 }
 
-TEST_FUNCTION(xio_client_process_item_NULL_fail)
+CTEST_FUNCTION(xio_client_process_item_NULL_fail)
 {
     // arrange
 
@@ -428,12 +442,12 @@ TEST_FUNCTION(xio_client_process_item_NULL_fail)
     xio_client_process_item(NULL);
 
     // assert
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
 }
 
-TEST_FUNCTION(xio_client_process_item_success)
+CTEST_FUNCTION(xio_client_process_item_success)
 {
     // arrange
     int parameters = 10;
@@ -446,13 +460,13 @@ TEST_FUNCTION(xio_client_process_item_success)
     xio_client_process_item(handle);
 
     // assert
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
     xio_client_destroy(handle);
 }
 
-TEST_FUNCTION(xio_client_query_endpoint_NULL_fail)
+CTEST_FUNCTION(xio_client_query_endpoint_NULL_fail)
 {
     // arrange
     uint16_t port;
@@ -461,12 +475,12 @@ TEST_FUNCTION(xio_client_query_endpoint_NULL_fail)
     xio_client_query_endpoint(NULL, &port);
 
     // assert
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
 }
 
-TEST_FUNCTION(xio_client_query_endpoint_success)
+CTEST_FUNCTION(xio_client_query_endpoint_success)
 {
     // arrange
     int parameters = 10;
@@ -481,14 +495,14 @@ TEST_FUNCTION(xio_client_query_endpoint_success)
     const char* endpoint = xio_client_query_endpoint(handle, &port);
 
     // assert
-    ASSERT_ARE_EQUAL(char_ptr, TEST_ENDPOINT, endpoint);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, TEST_ENDPOINT, endpoint);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
     xio_client_destroy(handle);
 }
 
-TEST_FUNCTION(xio_client_query_endpoint_no_port_success)
+CTEST_FUNCTION(xio_client_query_endpoint_no_port_success)
 {
     // arrange
     int parameters = 10;
@@ -501,11 +515,46 @@ TEST_FUNCTION(xio_client_query_endpoint_no_port_success)
     const char* endpoint = xio_client_query_endpoint(handle, NULL);
 
     // assert
-    ASSERT_ARE_EQUAL(char_ptr, TEST_ENDPOINT, endpoint);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, TEST_ENDPOINT, endpoint);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
     xio_client_destroy(handle);
 }
 
-END_TEST_SUITE(xio_client_ut)
+CTEST_FUNCTION(xio_client_listen_success)
+{
+    // arrange
+    int parameters = 10;
+    uint16_t port;
+    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(test_xio_client_listen(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG));
+
+    // act
+    int result = xio_client_listen(handle, test_on_accept_conn, NULL);
+
+    // assert
+    CTEST_ASSERT_ARE_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    xio_client_destroy(handle);
+}
+
+CTEST_FUNCTION(xio_client_listen_handle_NULL_fail)
+{
+    // arrange
+
+    // act
+    int result = xio_client_listen(NULL, test_on_accept_conn, NULL);
+
+    // assert
+    CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+}
+
+CTEST_END_TEST_SUITE(xio_client_ut)

@@ -198,6 +198,33 @@ int socket_shim_wsagetlasterror(void)
 }
 #endif
 
+#ifdef WIN32
+int socket_shim_bind(int __fd, __CONST_SOCKADDR_ARG __addr, socklen_t __len)
+#else
+int socket_shim_bind(int __fd, __CONST_SOCKADDR_ARG __addr, socklen_t __len)
+#endif
+{
+    return bind(__fd, __addr, __len);
+}
+
+#ifdef WIN32
+int socket_shim_listen(int __fd, int __n)
+#else
+int socket_shim_listen(int __fd, int __n)
+#endif
+{
+    return listen(__fd, __n);
+}
+
+#ifdef WIN32
+int socket_shim_accept(int __fd, __SOCKADDR_ARG __addr, socklen_t *__restrict __addr_len)
+#else
+int socket_shim_accept(int __fd, __SOCKADDR_ARG __addr, socklen_t *__restrict __addr_len)
+#endif
+{
+    return accept(__fd, __addr, __addr_len);
+}
+
 uint64_t socket_shim_get_bytes_sent()
 {
     uint64_t result;

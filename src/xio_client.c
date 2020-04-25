@@ -44,7 +44,7 @@ XIO_INSTANCE_HANDLE xio_client_create(const IO_INTERFACE_DESCRIPTION* io_interfa
         }
         else
         {
-            log_error("Failure allocating ");
+            log_error("Failure allocating io instance");
         }
     }
     return (XIO_INSTANCE_HANDLE)result;
@@ -60,26 +60,45 @@ void xio_client_destroy(XIO_INSTANCE_HANDLE xio)
     }
 }
 
-int xio_client_open(XIO_INSTANCE_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_context, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_context, ON_IO_ERROR on_io_error, void* on_io_error_context)
+int xio_client_open(XIO_INSTANCE_HANDLE xio, const XIO_CLIENT_CALLBACK_INFO* client_cbs)
 {
     int result;
-    if (xio == NULL)
+    if (xio == NULL || client_cbs == NULL)
     {
-        result = MU_FAILURE;
+        log_error("Invalid parameter specified");
+        result = __LINE__;
     }
     else
     {
         XIO_INSTANCE* xio_instance = (XIO_INSTANCE*)xio;
-        if (xio_instance->io_interface_description->interface_impl_open(xio_instance->concrete_xio_handle, on_io_open_complete, on_io_open_complete_context, on_bytes_received, on_bytes_received_context, on_io_error, on_io_error_context) != 0)
+        result = xio_instance->io_interface_description->interface_impl_open(xio_instance->concrete_xio_handle, client_cbs->on_io_open_complete,
+            client_cbs->on_io_open_complete_ctx, client_cbs->on_bytes_received, client_cbs->on_bytes_received_ctx, client_cbs->on_io_error,
+            client_cbs->on_io_error_ctx);
+    }
+    return result;
+}
+
+int xio_client_listen(XIO_INSTANCE_HANDLE xio, ON_INCOMING_CONNECT incoming_conn, void* user_ctx)
+{
+    int result;
+    if (xio == NULL)
+    {
+        log_error("Invalid parameter specified");
+        result = __LINE__;
+    }
+    else
+    {
+        XIO_INSTANCE* xio_instance = (XIO_INSTANCE*)xio;
+        if (xio_instance->io_interface_description->interface_impl_listen == NULL)
         {
-            result = MU_FAILURE;
+            log_error("Failure listening function not implemented");
+            result = __LINE__;
         }
         else
         {
-            result = 0;
+            result = xio_instance->io_interface_description->interface_impl_listen(xio_instance->concrete_xio_handle, incoming_conn, user_ctx);
         }
     }
-
     return result;
 }
 
@@ -88,19 +107,13 @@ int xio_client_close(XIO_INSTANCE_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_c
     int result;
     if (xio == NULL)
     {
-        result = MU_FAILURE;
+        log_error("Invalid parameter specified");
+        result = __LINE__;
     }
     else
     {
         XIO_INSTANCE* xio_instance = (XIO_INSTANCE*)xio;
-        if (xio_instance->io_interface_description->interface_impl_close(xio_instance->concrete_xio_handle, on_io_close_complete, callback_context) != 0)
-        {
-            result = MU_FAILURE;
-        }
-        else
-        {
-            result = 0;
-        }
+        result = xio_instance->io_interface_description->interface_impl_close(xio_instance->concrete_xio_handle, on_io_close_complete, callback_context);
     }
     return result;
 }
@@ -110,7 +123,8 @@ int xio_client_send(XIO_INSTANCE_HANDLE xio, const void* buffer, size_t size, ON
     int result;
     if (xio == NULL)
     {
-        result = MU_FAILURE;
+        log_error("Invalid parameter specified");
+        result = __LINE__;
     }
     else
     {
@@ -134,6 +148,7 @@ const char* xio_client_query_endpoint(XIO_INSTANCE_HANDLE xio, uint16_t* port)
     const char* result;
     if (xio == NULL)
     {
+        log_error("Invalid parameter specified");
         result = NULL;
     }
     else

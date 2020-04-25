@@ -83,11 +83,6 @@ if (${patchcords_ut})
     include("${CMAKE_CURRENT_LIST_DIR}/cmake_configs/proj_testing.cmake")
 
     enable_coverage_testing()
-
-    if ((NOT TARGET testrunnerswitcher) AND (EXISTS ${CMAKE_CURRENT_LIST_DIR}/deps/azure-c-testrunnerswitcher/CMakeLists.txt))
-        add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/azure-c-testrunnerswitcher)
-        include_directories(${TESTRUNNERSWITCHER_INC_FOLDER})
-    endif()
     if ((NOT TARGET ctest) AND (EXISTS ${CMAKE_CURRENT_LIST_DIR}/deps/azure-ctest/CMakeLists.txt))
         add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/azure-ctest)
         include_directories(${CTEST_INC_FOLDER})

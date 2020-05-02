@@ -196,10 +196,15 @@ int socket_shim_wsagetlasterror(void)
 {
     return WSAGetLastError();
 }
+
+u_short socket_shim_htons(u_short hostshort)
+{
+    return htons(hostshort);
+}
 #endif
 
 #ifdef WIN32
-int socket_shim_bind(int __fd, __CONST_SOCKADDR_ARG __addr, socklen_t __len)
+int socket_shim_bind(SOCKET __fd, const struct sockaddr FAR* __addr, int __len)
 #else
 int socket_shim_bind(int __fd, __CONST_SOCKADDR_ARG __addr, socklen_t __len)
 #endif
@@ -217,7 +222,7 @@ int socket_shim_listen(int __fd, int __n)
 }
 
 #ifdef WIN32
-int socket_shim_accept(int __fd, __SOCKADDR_ARG __addr, socklen_t *__restrict __addr_len)
+SOCKET socket_shim_accept(SOCKET __fd, struct sockaddr FAR* __addr, int FAR* __addr_len)
 #else
 int socket_shim_accept(int __fd, __SOCKADDR_ARG __addr, socklen_t *__restrict __addr_len)
 #endif

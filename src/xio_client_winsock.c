@@ -31,6 +31,7 @@ typedef enum SOCKET_STATE_TAG
     IO_STATE_CLOSING,
     IO_STATE_OPENING,
     IO_STATE_OPEN,
+    IO_STATE_LISTENING,
     IO_STATE_ERROR
 } SOCKET_STATE;
 
@@ -63,6 +64,9 @@ typedef struct SOCKET_INSTANCE_TAG
     void* on_io_error_context;
     ON_IO_CLOSE_COMPLETE on_io_close_complete;
     void* on_close_context;
+
+    ON_INCOMING_CONNECT on_incoming_conn;
+    void* on_incoming_ctx;
 } SOCKET_INSTANCE;
 
 typedef struct PENDING_SEND_ITEM_TAG
@@ -474,6 +478,72 @@ int xio_socket_open(XIO_IMPL_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete
     return result;
 }
 
+int xio_socket_listen(XIO_IMPL_HANDLE xio, ON_INCOMING_CONNECT incoming_conn_cb, void* user_ctx)
+{
+    uint16_t result;
+    if (xio == NULL || incoming_conn_cb == NULL)
+    {
+        log_error("Failure invalid parameter specified xio: %p, incoming_conn_cb: %p", xio, incoming_conn_cb);
+        result = __LINE__;
+    }
+    else
+    {
+        u_long mode = 1;
+        SOCKET_INSTANCE* socket_impl = (SOCKET_INSTANCE*)xio;
+        (void)user_ctx;
+        if (socket_impl->current_state == IO_STATE_OPENING || socket_impl->current_state == IO_STATE_OPEN)
+        {
+            log_error("Socket is in invalid state to open");
+            result = __LINE__;
+        }
+        else if (socket_impl->address_type != ADDRESS_TYPE_IP)
+        {
+            log_error("Socket is in an invalid state");
+            result = __LINE__;
+        }
+        else if (construct_socket_object(socket_impl) != 0)
+        {
+            log_error("Failure constructing socket");
+            result = __LINE__;
+        }
+        else if (ioctlsocket(socket_impl->socket, FIONBIO, &mode) != 0)
+        {
+            log_error("Failure Setting unblocking socket");
+            close_socket(socket_impl);
+            result = __LINE__;
+        }
+        else
+        {
+            struct sockaddr_in serv_addr = { 0 };
+            serv_addr.sin_family = AF_INET;
+            serv_addr.sin_addr.s_addr = INADDR_ANY;
+            serv_addr.sin_port = htons(socket_impl->port);
+
+            // bind the host address using bind() call
+            if (bind(socket_impl->socket, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0)
+            {
+                log_error("Failure binding to socket address");
+                close_socket(socket_impl);
+                result = __LINE__;
+            }
+            else if (listen(socket_impl->socket, SOMAXCONN) < 0)
+            {
+                log_error("Failure listening to incoming connection");
+                close_socket(socket_impl);
+                result = __LINE__;
+            }
+            else
+            {
+                socket_impl->current_state = IO_STATE_LISTENING;
+                socket_impl->on_incoming_conn = incoming_conn_cb;
+                socket_impl->on_incoming_ctx = user_ctx;
+                result = 0;
+            }
+        }
+    }
+    return result;
+}
+
 int xio_socket_close(XIO_IMPL_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_complete, void* ctx)
 {
     int result;
@@ -596,6 +666,30 @@ void xio_socket_process_item(XIO_IMPL_HANDLE xio)
                 }
             } while (cont_process_loop);
         }
+        else if (socket_impl->current_state == IO_STATE_LISTENING)
+        {
+            struct sockaddr_in cli_addr;
+            socklen_t client_len = sizeof(cli_addr);
+            // Accept actual connection from the client
+            int accepted_socket = accept(socket_impl->socket, (struct sockaddr *)&cli_addr, &client_len);
+            if (accepted_socket != -1)
+            {
+                u_long mode = 1;
+                if (ioctlsocket(socket_impl->socket, FIONBIO, &mode) != 0)
+                {
+                    log_error("Failure setting accepted socket to non blocking");
+                    (void)shutdown(accepted_socket, SD_BOTH);
+                    closesocket(accepted_socket);
+                }
+                else
+                {
+                    SOCKETIO_CONFIG config = { 0 };
+                    config.port = cli_addr.sin_port;
+                    config.accepted_socket = &accepted_socket;
+                    socket_impl->on_incoming_conn(socket_impl->on_incoming_ctx, &config);
+                }
+            }
+        }
         else
         {
 
@@ -645,6 +739,7 @@ static const IO_INTERFACE_DESCRIPTION socket_io_interface =
     xio_socket_process_item,
     xio_socket_query_uri,
     xio_socket_query_port,
+    xio_socket_listen
 };
 
 const IO_INTERFACE_DESCRIPTION* xio_socket_get_interface(void)

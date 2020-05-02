@@ -8,6 +8,16 @@
 #include <stddef.h>
 #endif
 
+static void* my_mem_shim_malloc(size_t size)
+{
+    return malloc(size);
+}
+
+static void my_mem_shim_free(void* ptr)
+{
+    free(ptr);
+}
+
 #define WIN32_LEAN_AND_MEAN
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -19,16 +29,6 @@
 
 #include "umock_c/umock_c_negative_tests.h"
 #include "umock_c/umocktypes_charptr.h"
-
-static void* my_mem_shim_malloc(size_t size)
-{
-    return malloc(size);
-}
-
-static void my_mem_shim_free(void* ptr)
-{
-    free(ptr);
-}
 
 #define ENABLE_MOCKS
 #include "patchcords/xio_client.h"
@@ -58,8 +58,9 @@ extern "C"
 #include "patchcords/xio_socket.h"
 
 static const char* TEST_HOSTNAME = "test.hostname.com";
-static size_t TEST_SEND_BUFFER_LEN = 16;
+static const char* TEST_PORT_STRING = "8543";
 static uint16_t TEST_PORT_VALUE = 8543;
+static size_t TEST_SEND_BUFFER_LEN = 16;
 
 static ITEM_LIST_DESTROY_ITEM g_item_list_destroy_cb;
 static void* g_item_list_user_ctx;
@@ -73,6 +74,7 @@ static unsigned char g_recv_buffer[] = { 0x52, 0x62, 0x88, 0x52, 0x59 };
 static size_t g_buffer_len = 10;
 
 static ADDRINFO TEST_ADDR_INFO = { 0 };
+#define FAKE_GOOD_IP_ADDR 444
 
 #ifdef __cplusplus
 extern "C" {
@@ -143,10 +145,15 @@ extern "C" {
         (void)node;
         (void)svc_name;
         (void)hints;
-        (void)res;
-        g_addr_info.ai_addr = &g_connect_addr;
-        *res = &g_addr_info;
+        //g_addr_info.ai_addr = &g_connect_addr;
+        *res = (PADDRINFOA)my_mem_shim_malloc(sizeof(ADDRINFOA));
+        memcpy(*res, &TEST_ADDR_INFO, sizeof(ADDRINFOA));
         return 0;
+    }
+
+    static void my_socket_shim_freeaddrinfo(PADDRINFOA result)
+    {
+        my_mem_shim_free(result);
     }
 
     static int my_socket_shim_send(SOCKET sock, const void* buf, int len, int flags)
@@ -180,7 +187,7 @@ extern "C" {
         length = sprintf(temp_buffer, "{ ai_flags = %d, ai_family = %d, ai_socktype = %d, ai_protocol = %d, ai_addrlen = %u, ai_canonname = %s", (*value)->ai_flags, (*value)->ai_family, (*value)->ai_socktype, (*value)->ai_protocol, (unsigned int)((*value)->ai_addrlen), (*value)->ai_canonname);
         if (length > 0)
         {
-            result = (char*)malloc(strlen(temp_buffer) + 1);
+            result = (char*)my_mem_shim_malloc(strlen(temp_buffer) + 1);
             if (result != NULL)
             {
                 (void)memcpy(result, temp_buffer, strlen(temp_buffer) + 1);
@@ -198,22 +205,20 @@ extern "C" {
             ((*left)->ai_socktype != (*right)->ai_socktype) ||
             ((*left)->ai_protocol != (*right)->ai_protocol) ||
             ((((*left)->ai_canonname == NULL) || ((*right)->ai_canonname == NULL)) && ((*left)->ai_canonname != (*right)->ai_canonname)) ||
-            (strcmp((*left)->ai_canonname, (*right)->ai_canonname) != 0))
+            (((*left)->ai_canonname != NULL && (*right)->ai_canonname != NULL) && (strcmp((*left)->ai_canonname, (*right)->ai_canonname) != 0)))
         {
             result = 0;
         }
-
         return result;
     }
 
     int umocktypes_copy_const_ADDRINFOA_ptr(ADDRINFOA** destination, const ADDRINFOA** source)
     {
         int result;
-
-        *destination = (ADDRINFOA*)malloc(sizeof(ADDRINFOA));
+        *destination = (ADDRINFOA*)my_mem_shim_malloc(sizeof(ADDRINFOA));
         if (*destination == NULL)
         {
-            result = MU_FAILURE;
+            result = __LINE__;
         }
         else
         {
@@ -222,7 +227,6 @@ extern "C" {
             (*destination)->ai_socktype = (*source)->ai_socktype;
             (*destination)->ai_protocol = (*source)->ai_protocol;
             (*destination)->ai_canonname = (*source)->ai_canonname;
-
             result = 0;
         }
 
@@ -231,7 +235,7 @@ extern "C" {
 
     void umocktypes_free_const_ADDRINFOA_ptr(ADDRINFOA** value)
     {
-        free(*value);
+        my_mem_shim_free(*value);
     }
 
     char* umocktypes_stringify_const_struct_sockaddr_ptr(const struct sockaddr** value)
@@ -243,7 +247,7 @@ extern "C" {
         length = sprintf(temp_buffer, "{ sa_family = %u, sa_data = ... }", (unsigned int)((*value)->sa_family));
         if (length > 0)
         {
-            result = (char*)malloc(strlen(temp_buffer) + 1);
+            result = (char*)my_mem_shim_malloc(strlen(temp_buffer) + 1);
             if (result != NULL)
             {
                 (void)memcpy(result, temp_buffer, strlen(temp_buffer) + 1);
@@ -269,7 +273,7 @@ extern "C" {
     {
         int result;
 
-        *destination = (struct sockaddr*)malloc(sizeof(struct sockaddr));
+        *destination = (struct sockaddr*)my_mem_shim_malloc(sizeof(struct sockaddr));
         if (*destination == NULL)
         {
             result = MU_FAILURE;
@@ -287,7 +291,7 @@ extern "C" {
 
     void umocktypes_free_const_struct_sockaddr_ptr(struct sockaddr** value)
     {
-        free(*value);
+        my_mem_shim_free(*value);
     }
 
 #ifdef __cplusplus
@@ -325,7 +329,6 @@ CTEST_SUITE_INITIALIZE()
     REGISTER_TYPE(const ADDRINFOA*, const_ADDRINFOA_ptr);
     REGISTER_UMOCK_ALIAS_TYPE(PADDRINFOA, const ADDRINFOA*);
 
-
     REGISTER_GLOBAL_MOCK_HOOK(mem_shim_malloc, my_mem_shim_malloc);
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(mem_shim_malloc, NULL);
     REGISTER_GLOBAL_MOCK_HOOK(mem_shim_free, my_mem_shim_free);
@@ -345,6 +348,7 @@ CTEST_SUITE_INITIALIZE()
     REGISTER_GLOBAL_MOCK_HOOK(socket_shim_close, my_socket_shim_close);
     REGISTER_GLOBAL_MOCK_HOOK(socket_shim_getaddrinfo, my_socket_shim_getaddrinfo);
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(socket_shim_getaddrinfo, __LINE__);
+    REGISTER_GLOBAL_MOCK_HOOK(socket_shim_freeaddrinfo, my_socket_shim_freeaddrinfo);
     REGISTER_GLOBAL_MOCK_HOOK(socket_shim_send, my_socket_shim_send);
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(socket_shim_send, -1);
     REGISTER_GLOBAL_MOCK_HOOK(socket_shim_recv, my_socket_shim_recv);
@@ -355,6 +359,12 @@ CTEST_SUITE_INITIALIZE()
 
     REGISTER_GLOBAL_MOCK_RETURN(WSAStartup, 0);
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(WSAStartup, 1);
+
+    TEST_ADDR_INFO.ai_next = NULL;
+    TEST_ADDR_INFO.ai_family = AF_INET;
+    TEST_ADDR_INFO.ai_socktype = SOCK_STREAM;
+    TEST_ADDR_INFO.ai_addr = (struct sockaddr*)(&g_connect_addr);
+    ((struct sockaddr_in*)TEST_ADDR_INFO.ai_addr)->sin_addr.s_addr = FAKE_GOOD_IP_ADDR;
 }
 
 CTEST_SUITE_CLEANUP()
@@ -384,8 +394,9 @@ static void setup_xio_socket_create_mocks(void)
 
 static void setup_xio_socket_process_item_open_mocks(void)
 {
-    STRICT_EXPECTED_CALL(getaddrinfo(IGNORED_ARG, IGNORED_ARG, &TEST_ADDR_INFO, IGNORED_ARG));
+    STRICT_EXPECTED_CALL(getaddrinfo(TEST_HOSTNAME, TEST_PORT_STRING, &TEST_ADDR_INFO, IGNORED_ARG));
     STRICT_EXPECTED_CALL(connect(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG));
+    STRICT_EXPECTED_CALL(ioctlsocket(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG));
     STRICT_EXPECTED_CALL(test_on_open_complete(IGNORED_ARG, IO_OPEN_OK));
     STRICT_EXPECTED_CALL(socket_shim_freeaddrinfo(IGNORED_ARG));
 }
@@ -734,7 +745,6 @@ CTEST_FUNCTION(xio_socket_send_success)
     xio_socket_destroy(handle);
 }
 
-#if 0
 CTEST_FUNCTION(xio_socket_send_no_callback_success)
 {
     // arrange
@@ -747,7 +757,7 @@ CTEST_FUNCTION(xio_socket_send_no_callback_success)
     xio_socket_process_item(handle);
     umock_c_reset_all_calls();
 
-    /*STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
+    STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
     STRICT_EXPECTED_CALL(send(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG)).SetReturn(g_buffer_len);
     STRICT_EXPECTED_CALL(free(IGNORED_ARG));
 
@@ -756,15 +766,16 @@ CTEST_FUNCTION(xio_socket_send_no_callback_success)
 
     // assert
     CTEST_ASSERT_ARE_EQUAL(int, 0, result);
-    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());*/
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
-    /*(void)xio_socket_close(handle, test_on_close_complete, NULL);
+    (void)xio_socket_close(handle, test_on_close_complete, NULL);
     xio_socket_process_item(handle);
     xio_socket_destroy(handle);
 }
 
-/*CTEST_FUNCTION(xio_socket_send_partial_send_success)
+#if 0
+CTEST_FUNCTION(xio_socket_send_partial_send_success)
 {
     // arrange
     SOCKETIO_CONFIG config = {0};
@@ -792,7 +803,7 @@ CTEST_FUNCTION(xio_socket_send_no_callback_success)
     (void)xio_socket_close(handle, test_on_close_complete, NULL);
     xio_socket_process_item(handle);
     xio_socket_destroy(handle);
-}*/
+}
 
 /*CTEST_FUNCTION(xio_socket_process_item_handle_NULL_success)
 {
@@ -1068,7 +1079,8 @@ CTEST_FUNCTION(xio_socket_query_port_success)
 
     // cleanup
     xio_socket_destroy(handle);
-}
+}*/
+#endif
 
 CTEST_FUNCTION(xio_socket_get_interface_success)
 {
@@ -1086,9 +1098,10 @@ CTEST_FUNCTION(xio_socket_get_interface_success)
     CTEST_ASSERT_IS_NOT_NULL(io_desc->interface_impl_process_item);
     CTEST_ASSERT_IS_NOT_NULL(io_desc->interface_impl_query_uri);
     CTEST_ASSERT_IS_NOT_NULL(io_desc->interface_impl_query_port);
+    //CTEST_ASSERT_IS_NOT_NULL(io_desc->interface_impl_l);
     CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
-}*/
-#endif
+}
+
 CTEST_END_TEST_SUITE(xio_client_winsock_ut)

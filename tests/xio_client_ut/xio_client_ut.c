@@ -34,9 +34,9 @@ static void my_mem_shim_free(void* ptr)
 #include "umock_c/umock_c_prod.h"
 #include "lib-util-c/sys_debug_shim.h"
 
-MOCKABLE_FUNCTION(, XIO_IMPL_HANDLE, test_xio_create, const void*, xio_create_parameters);
+MOCKABLE_FUNCTION(, XIO_IMPL_HANDLE, test_xio_create, const void*, xio_create_parameters, ON_BYTES_RECEIVED, on_bytes_received, void*, on_bytes_received_context, ON_IO_ERROR, on_io_error, void*, on_io_error_context);
 MOCKABLE_FUNCTION(, void, test_xio_destroy, XIO_IMPL_HANDLE, handle);
-MOCKABLE_FUNCTION(, int, test_xio_open, XIO_IMPL_HANDLE, handle, ON_IO_OPEN_COMPLETE, on_io_open_complete, void*, on_io_open_complete_context, ON_BYTES_RECEIVED, on_bytes_received, void*, on_bytes_received_context, ON_IO_ERROR, on_io_error, void*, on_io_error_context);
+MOCKABLE_FUNCTION(, int, test_xio_open, XIO_IMPL_HANDLE, handle, ON_IO_OPEN_COMPLETE, on_io_open_complete, void*, on_io_open_complete_context);
 MOCKABLE_FUNCTION(, int, test_xio_close, XIO_IMPL_HANDLE, handle, ON_IO_CLOSE_COMPLETE, on_io_close_complete, void*, callback_context);
 MOCKABLE_FUNCTION(, int, test_xio_send, XIO_IMPL_HANDLE, handle, const void*, buffer, size_t, size, ON_SEND_COMPLETE, on_send_complete, void*, callback_context);
 MOCKABLE_FUNCTION(, void, test_xio_process_item, XIO_IMPL_HANDLE, handle);
@@ -53,7 +53,7 @@ static size_t TEST_SEND_BUFFER_LEN = 16;
 #ifdef __cplusplus
 extern "C" {
 #endif
-    XIO_IMPL_HANDLE my_test_xio_create(const void* xio_create_parameters)
+    XIO_IMPL_HANDLE my_test_xio_create(const void* xio_create_parameters, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_context, ON_IO_ERROR on_io_error, void* on_io_error_context)
     {
         (void)xio_create_parameters;
         return (XIO_IMPL_HANDLE)my_mem_shim_malloc(1);
@@ -166,12 +166,15 @@ CTEST_FUNCTION(xio_create_succeed)
 {
     // arrange
     int parameters = 10;
+    XIO_CLIENT_CALLBACK_INFO client_callbacks = { 0 };
+    client_callbacks.on_bytes_received = test_on_bytes_received;
+    client_callbacks.on_io_error = test_on_io_error;
 
     STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
-    STRICT_EXPECTED_CALL(test_xio_create(&parameters));
+    STRICT_EXPECTED_CALL(test_xio_create(&parameters, test_on_bytes_received, NULL, test_on_io_error, NULL));
 
     // act
-    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
+    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters, &client_callbacks);
 
     // assert
     CTEST_ASSERT_IS_NOT_NULL(handle);
@@ -185,12 +188,15 @@ CTEST_FUNCTION(xio_create_fail)
 {
     // arrange
     int parameters = 10;
+    XIO_CLIENT_CALLBACK_INFO client_callbacks = { 0 };
+    client_callbacks.on_bytes_received = test_on_bytes_received;
+    client_callbacks.on_io_error = test_on_io_error;
 
     int negativeTestsInitResult = umock_c_negative_tests_init();
     CTEST_ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
 
     STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
-    STRICT_EXPECTED_CALL(test_xio_create(&parameters));
+    STRICT_EXPECTED_CALL(test_xio_create(&parameters, test_on_bytes_received, NULL, test_on_io_error, NULL));
 
     umock_c_negative_tests_snapshot();
 
@@ -201,7 +207,7 @@ CTEST_FUNCTION(xio_create_fail)
         umock_c_negative_tests_fail_call(index);
 
         // act
-        XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
+        XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters, &client_callbacks);
 
         // assert
         CTEST_ASSERT_IS_NULL(handle);
@@ -215,9 +221,12 @@ CTEST_FUNCTION(xio_create_interface_desc_NULL_fail)
 {
     // arrange
     int parameters = 10;
+    XIO_CLIENT_CALLBACK_INFO client_callbacks = { 0 };
+    client_callbacks.on_bytes_received = test_on_bytes_received;
+    client_callbacks.on_io_error = test_on_io_error;
 
     // act
-    XIO_INSTANCE_HANDLE handle = xio_client_create(NULL, &parameters);
+    XIO_INSTANCE_HANDLE handle = xio_client_create(NULL, &parameters, &client_callbacks);
 
     // assert
     CTEST_ASSERT_IS_NULL(handle);
@@ -230,7 +239,11 @@ CTEST_FUNCTION(xio_client_destroy_success)
 {
     // arrange
     int parameters = 10;
-    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
+    XIO_CLIENT_CALLBACK_INFO client_callbacks = { 0 };
+    client_callbacks.on_bytes_received = test_on_bytes_received;
+    client_callbacks.on_io_error = test_on_io_error;
+
+    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters, &client_callbacks);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(test_xio_destroy(IGNORED_ARG));
@@ -261,13 +274,9 @@ CTEST_FUNCTION(xio_client_destroy_handle_NULL_fail)
 CTEST_FUNCTION(xio_client_open_handle_NULL_fail)
 {
     // arrange
-    XIO_CLIENT_CALLBACK_INFO client_callbacks = { 0 };
-    client_callbacks.on_bytes_received = test_on_bytes_received;
-    client_callbacks.on_io_error = test_on_io_error;
-    client_callbacks.on_io_open_complete = test_on_io_open_complete;
 
     // act
-    int result = xio_client_open(NULL, &client_callbacks);
+    int result = xio_client_open(NULL, test_on_io_open_complete, NULL);
 
     // assert
     CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
@@ -283,15 +292,14 @@ CTEST_FUNCTION(xio_client_open_success)
     XIO_CLIENT_CALLBACK_INFO client_callbacks = { 0 };
     client_callbacks.on_bytes_received = test_on_bytes_received;
     client_callbacks.on_io_error = test_on_io_error;
-    client_callbacks.on_io_open_complete = test_on_io_open_complete;
 
-    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
+    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters, &client_callbacks);
     umock_c_reset_all_calls();
 
-    STRICT_EXPECTED_CALL(test_xio_open(IGNORED_ARG, IGNORED_ARG, NULL, IGNORED_ARG, NULL, IGNORED_ARG, NULL));
+    STRICT_EXPECTED_CALL(test_xio_open(IGNORED_ARG, test_on_io_open_complete, NULL));
 
     // act
-    int result = xio_client_open(handle, &client_callbacks);
+    int result = xio_client_open(handle, test_on_io_open_complete, NULL);
 
     // assert
     CTEST_ASSERT_ARE_EQUAL(int, 0, result);
@@ -308,15 +316,14 @@ CTEST_FUNCTION(xio_client_open_fail)
     XIO_CLIENT_CALLBACK_INFO client_callbacks = { 0 };
     client_callbacks.on_bytes_received = test_on_bytes_received;
     client_callbacks.on_io_error = test_on_io_error;
-    client_callbacks.on_io_open_complete = test_on_io_open_complete;
 
-    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
+    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters, &client_callbacks);
     umock_c_reset_all_calls();
 
-    STRICT_EXPECTED_CALL(test_xio_open(IGNORED_ARG, IGNORED_ARG, NULL, IGNORED_ARG, NULL, IGNORED_ARG, NULL)).SetReturn(__LINE__);
+    STRICT_EXPECTED_CALL(test_xio_open(IGNORED_ARG, test_on_io_open_complete, NULL)).SetReturn(__LINE__);
 
     // act
-    int result = xio_client_open(handle, &client_callbacks);
+    int result = xio_client_open(handle, test_on_io_open_complete, NULL);
 
     // assert
     CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
@@ -344,7 +351,10 @@ CTEST_FUNCTION(xio_client_close_success)
 {
     // arrange
     int parameters = 10;
-    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
+    XIO_CLIENT_CALLBACK_INFO client_callbacks = { 0 };
+    client_callbacks.on_bytes_received = test_on_bytes_received;
+    client_callbacks.on_io_error = test_on_io_error;
+    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters, &client_callbacks);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(test_xio_close(IGNORED_ARG, test_on_io_close_complete, NULL));
@@ -364,7 +374,10 @@ CTEST_FUNCTION(xio_client_close_fail)
 {
     // arrange
     int parameters = 10;
-    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
+    XIO_CLIENT_CALLBACK_INFO client_callbacks = { 0 };
+    client_callbacks.on_bytes_received = test_on_bytes_received;
+    client_callbacks.on_io_error = test_on_io_error;
+    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters, &client_callbacks);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(test_xio_close(IGNORED_ARG, test_on_io_close_complete, NULL)).SetReturn(__LINE__);
@@ -398,7 +411,10 @@ CTEST_FUNCTION(xio_client_send_success)
 {
     // arrange
     int parameters = 10;
-    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
+    XIO_CLIENT_CALLBACK_INFO client_callbacks = { 0 };
+    client_callbacks.on_bytes_received = test_on_bytes_received;
+    client_callbacks.on_io_error = test_on_io_error;
+    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters, &client_callbacks);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(test_xio_send(IGNORED_ARG, TEST_SEND_BUFFER, TEST_SEND_BUFFER_LEN, test_on_send_complete, NULL));
@@ -418,7 +434,10 @@ CTEST_FUNCTION(xio_client_send_fail)
 {
     // arrange
     int parameters = 10;
-    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
+    XIO_CLIENT_CALLBACK_INFO client_callbacks = { 0 };
+    client_callbacks.on_bytes_received = test_on_bytes_received;
+    client_callbacks.on_io_error = test_on_io_error;
+    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters, &client_callbacks);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(test_xio_send(IGNORED_ARG, TEST_SEND_BUFFER, TEST_SEND_BUFFER_LEN, test_on_send_complete, NULL)).SetReturn(__LINE__);
@@ -451,7 +470,10 @@ CTEST_FUNCTION(xio_client_process_item_success)
 {
     // arrange
     int parameters = 10;
-    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
+    XIO_CLIENT_CALLBACK_INFO client_callbacks = { 0 };
+    client_callbacks.on_bytes_received = test_on_bytes_received;
+    client_callbacks.on_io_error = test_on_io_error;
+    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters, &client_callbacks);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(test_xio_process_item(IGNORED_ARG));
@@ -485,7 +507,10 @@ CTEST_FUNCTION(xio_client_query_endpoint_success)
     // arrange
     int parameters = 10;
     uint16_t port;
-    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
+    XIO_CLIENT_CALLBACK_INFO client_callbacks = { 0 };
+    client_callbacks.on_bytes_received = test_on_bytes_received;
+    client_callbacks.on_io_error = test_on_io_error;
+    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters, &client_callbacks);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(test_xio_query_port(IGNORED_ARG));
@@ -506,7 +531,10 @@ CTEST_FUNCTION(xio_client_query_endpoint_no_port_success)
 {
     // arrange
     int parameters = 10;
-    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
+    XIO_CLIENT_CALLBACK_INFO client_callbacks = { 0 };
+    client_callbacks.on_bytes_received = test_on_bytes_received;
+    client_callbacks.on_io_error = test_on_io_error;
+    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters, &client_callbacks);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(test_xio_query_uri(IGNORED_ARG));
@@ -527,7 +555,10 @@ CTEST_FUNCTION(xio_client_listen_success)
     // arrange
     int parameters = 10;
     uint16_t port;
-    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters);
+    XIO_CLIENT_CALLBACK_INFO client_callbacks = { 0 };
+    client_callbacks.on_bytes_received = test_on_bytes_received;
+    client_callbacks.on_io_error = test_on_io_error;
+    XIO_INSTANCE_HANDLE handle = xio_client_create(&io_interface_description, &parameters, &client_callbacks);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(test_xio_client_listen(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG));

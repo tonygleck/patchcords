@@ -30,3 +30,18 @@ jobs:
     # Runs a single command using the runners shell
     - name: Run a one-line script
       run: $GITHUB_WORKSPACE/scripts/build_coverage.sh
+
+jobs:
+  # This will be the windows workflow
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'true'
+
+      - name: 'Run CMake with Ninja'
+        uses: lukka/run-cmake@v2
+        with:
+          cmakeListsOrSettingsJson: CMakeListsTxtBasic

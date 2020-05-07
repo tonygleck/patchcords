@@ -57,41 +57,47 @@ void on_xio_error(void* context, IO_ERROR_RESULT error_result)
 
 int main()
 {
+    SAMPLE_DATA data = {0};
     SOCKETIO_CONFIG config = {0};
     config.hostname = "127.0.0.1";
     config.port = 4444;
     config.address_type = ADDRESS_TYPE_IP;
 
-    XIO_IMPL_HANDLE handle = xio_socket_create(&config);
+    XIO_CLIENT_CALLBACK_INFO client_info;
+    client_info.on_bytes_received = on_xio_bytes_recv;
+    client_info.on_bytes_received_ctx = &data;
+    client_info.on_io_error = on_xio_error;
+    client_info.on_io_error_ctx = &data;
+
+    XIO_IMPL_HANDLE handle = xio_client_create(xio_socket_get_interface(), &config, &client_info);
     if (handle == NULL)
     {
         printf("Failure creating socket");
     }
     else
     {
-        SAMPLE_DATA data = {0};
-        if (xio_socket_open(handle, on_xio_open_complete, &data, on_xio_bytes_recv, &data, on_xio_error, NULL) != 0)
+        if (xio_client_open(handle, on_xio_open_complete, &data) != 0)
         {
             printf("Failed socket open");
         }
 
         do
         {
-            xio_socket_process_item(handle);
+            xio_client_process_item(handle);
 
             if (data.socket_open > 0)
             {
                 if (data.send_complete == 0)
                 {
                     // Send socket
-                    if (xio_socket_send(handle, TEST_SEND_DATA, strlen(TEST_SEND_DATA), on_xio_send_complete, &data) != 0)
+                    if (xio_client_send(handle, TEST_SEND_DATA, strlen(TEST_SEND_DATA), on_xio_send_complete, &data) != 0)
                     {
                         printf("Failure sending data to socket\n");
                     }
                 }
                 else if (data.send_complete >= 2)
                 {
-                    xio_socket_close(handle, on_xio_close_complete, &data);
+                    xio_client_close(handle, on_xio_close_complete, &data);
                 }
             }
             if (data.socket_closed > 0)
@@ -100,8 +106,7 @@ int main()
             }
         } while (data.keep_running == 0);
 
-        xio_socket_destroy(handle);
+        xio_client_destroy(handle);
     }
-
     return 0;
 }

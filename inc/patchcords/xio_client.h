@@ -69,9 +69,9 @@ typedef void(*ON_IO_ERROR)(void* context, IO_ERROR_RESULT error_result);
 
 typedef void(*ON_INCOMING_CONNECT)(void* context, const SOCKETIO_CONFIG* config);
 
-typedef XIO_IMPL_HANDLE(*IO_CREATE)(const void* io_create_parameters);
+typedef XIO_IMPL_HANDLE(*IO_CREATE)(const void* io_create_parameters, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_ctx, ON_IO_ERROR on_io_error, void* on_io_error_ctx);
 typedef void(*IO_DESTROY)(XIO_IMPL_HANDLE impl_handle);
-typedef int(*IO_OPEN)(XIO_IMPL_HANDLE impl_handle, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_context, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_ctx, ON_IO_ERROR on_io_error, void* on_io_error_ctx);
+typedef int(*IO_OPEN)(XIO_IMPL_HANDLE impl_handle, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_context);
 typedef int(*IO_CLOSE)(XIO_IMPL_HANDLE impl_handle, ON_IO_CLOSE_COMPLETE on_io_close_complete, void* callback_context);
 typedef int(*IO_SEND)(XIO_IMPL_HANDLE impl_handle, const void* buffer, size_t size, ON_SEND_COMPLETE on_send_complete, void* callback_ctx);
 typedef void(*IO_PROCESS_ITEM)(XIO_IMPL_HANDLE impl_handle);
@@ -94,17 +94,15 @@ typedef struct IO_INTERFACE_DESCRIPTION_TAG
 
 typedef struct XIO_CLIENT_CALLBACK_INFO_TAG
 {
-    ON_IO_OPEN_COMPLETE on_io_open_complete;
-    void* on_io_open_complete_ctx;
     ON_BYTES_RECEIVED on_bytes_received;
     void* on_bytes_received_ctx;
     ON_IO_ERROR on_io_error;
     void* on_io_error_ctx;
 } XIO_CLIENT_CALLBACK_INFO;
 
-MOCKABLE_FUNCTION(, XIO_INSTANCE_HANDLE, xio_client_create, const IO_INTERFACE_DESCRIPTION*, io_interface_description, const void*, parameters);
+MOCKABLE_FUNCTION(, XIO_INSTANCE_HANDLE, xio_client_create, const IO_INTERFACE_DESCRIPTION*, io_interface_description, const void*, parameters, const XIO_CLIENT_CALLBACK_INFO*, client_cb);
 MOCKABLE_FUNCTION(, void, xio_client_destroy, XIO_INSTANCE_HANDLE, xio);
-MOCKABLE_FUNCTION(, int, xio_client_open, XIO_INSTANCE_HANDLE, xio, const XIO_CLIENT_CALLBACK_INFO*, client_callbacks);
+MOCKABLE_FUNCTION(, int, xio_client_open, XIO_INSTANCE_HANDLE, xio, ON_IO_OPEN_COMPLETE, on_io_open_complete, void*, on_io_open_complete_ctx);
 MOCKABLE_FUNCTION(, int, xio_client_listen, XIO_INSTANCE_HANDLE, xio, ON_INCOMING_CONNECT, incoming_conn, void*, user_ctx);
 MOCKABLE_FUNCTION(, int, xio_client_close, XIO_INSTANCE_HANDLE, xio, ON_IO_CLOSE_COMPLETE, on_io_close_complete, void*, callback_context);
 MOCKABLE_FUNCTION(, int, xio_client_send, XIO_INSTANCE_HANDLE, xio, const void*, buffer, size_t, size, ON_SEND_COMPLETE, on_send_complete, void*, callback_context);

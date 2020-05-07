@@ -338,6 +338,7 @@ static SOCKET_SEND_RESULT send_socket_data(SOCKET_INSTANCE* socket_impl, PENDING
             {
                 if (item_list_add_item(socket_impl->pending_list, pending_item) != 0)
                 {
+                    indicate_error(socket_impl, IO_ERROR_MEMORY);
                     if (pending_item->on_send_complete != NULL)
                     {
                         pending_item->on_send_complete(pending_item->send_ctx, IO_SEND_ERROR);
@@ -368,7 +369,6 @@ static SOCKET_SEND_RESULT send_socket_data(SOCKET_INSTANCE* socket_impl, PENDING
             if (item_list_add_item(socket_impl->pending_list, pending_item) != 0)
             {
                 indicate_error(socket_impl, IO_ERROR_MEMORY);
-
                 // if (pending_item->on_send_complete != NULL)
                 // {
                 //     pending_item->on_send_complete(pending_item->send_ctx, IO_SEND_ERROR);
@@ -466,7 +466,7 @@ static SOCKET_INSTANCE* create_socket_info(const SOCKETIO_CONFIG* config)
     return result;
 }
 
-XIO_IMPL_HANDLE xio_socket_create(const void* parameters)
+XIO_IMPL_HANDLE xio_socket_create(const void* parameters, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_context, ON_IO_ERROR on_io_error, void* on_io_error_context)
 {
     SOCKET_INSTANCE* result;
     if (parameters == NULL)
@@ -474,9 +474,18 @@ XIO_IMPL_HANDLE xio_socket_create(const void* parameters)
         log_error("Invalid parameter specified");
         result = NULL;
     }
+    else if ((result = create_socket_info((const SOCKETIO_CONFIG*)parameters)) == NULL)
+    {
+        log_error("Failure creating socket info");
+        result = NULL;
+    }
     else
     {
-        result = create_socket_info((const SOCKETIO_CONFIG*)parameters);
+        result->on_bytes_received = on_bytes_received;
+        result->on_bytes_received_context = on_bytes_received_context;
+        result->on_io_error = on_io_error;
+        result->on_io_error_context = on_io_error_context;
+
     }
     return (XIO_IMPL_HANDLE)result;
 }
@@ -496,7 +505,7 @@ void xio_socket_destroy(XIO_IMPL_HANDLE xio)
     }
 }
 
-int xio_socket_open(XIO_IMPL_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_context, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_context, ON_IO_ERROR on_io_error, void* on_io_error_context)
+int xio_socket_open(XIO_IMPL_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_context)
 {
     int result;
     if (xio == NULL)
@@ -522,10 +531,6 @@ int xio_socket_open(XIO_IMPL_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete
             socket_impl->current_state = IO_STATE_OPENING;
             socket_impl->on_io_open_complete = on_io_open_complete;
             socket_impl->on_io_open_complete_context = on_io_open_complete_context;
-            socket_impl->on_bytes_received = on_bytes_received;
-            socket_impl->on_bytes_received_context = on_bytes_received_context;
-            socket_impl->on_io_error = on_io_error;
-            socket_impl->on_io_error_context = on_io_error_context;
             result = 0;
         }
     }

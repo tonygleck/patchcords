@@ -13,7 +13,7 @@ typedef struct XIO_INSTANCE_TAG
     XIO_IMPL_HANDLE concrete_xio_handle;
 } XIO_INSTANCE;
 
-XIO_INSTANCE_HANDLE xio_client_create(const IO_INTERFACE_DESCRIPTION* io_interface_description, const void* parameters)
+XIO_INSTANCE_HANDLE xio_client_create(const IO_INTERFACE_DESCRIPTION* io_interface_description, const void* parameters, const XIO_CLIENT_CALLBACK_INFO* client_cb)
 {
     XIO_INSTANCE* result;
     if ((io_interface_description == NULL) ||
@@ -29,13 +29,18 @@ XIO_INSTANCE_HANDLE xio_client_create(const IO_INTERFACE_DESCRIPTION* io_interfa
         log_error("Invalid interface description specified");
         result = NULL;
     }
+    else if (client_cb == NULL)
+    {
+        log_error("client callback parameter is NULL");
+        result = NULL;
+    }
     else
     {
         /* Codes_SRS_XIO_01_017: [If allocating the memory needed for the IO interface fails then xio_create shall return NULL.] */
         if ((result = (XIO_INSTANCE*)malloc(sizeof(XIO_INSTANCE))) != NULL)
         {
             result->io_interface_description = io_interface_description;
-            if ((result->concrete_xio_handle  = result->io_interface_description->interface_impl_create(parameters)) == NULL)
+            if ((result->concrete_xio_handle  = result->io_interface_description->interface_impl_create(parameters, client_cb->on_bytes_received, client_cb->on_bytes_received_ctx, client_cb->on_io_error, client_cb->on_io_error_ctx)) == NULL)
             {
                 log_error("Failure calling interface create");
                 free(result);
@@ -60,10 +65,10 @@ void xio_client_destroy(XIO_INSTANCE_HANDLE xio)
     }
 }
 
-int xio_client_open(XIO_INSTANCE_HANDLE xio, const XIO_CLIENT_CALLBACK_INFO* client_cbs)
+int xio_client_open(XIO_INSTANCE_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_context)
 {
     int result;
-    if (xio == NULL || client_cbs == NULL)
+    if (xio == NULL)
     {
         log_error("Invalid parameter specified");
         result = __LINE__;
@@ -71,9 +76,7 @@ int xio_client_open(XIO_INSTANCE_HANDLE xio, const XIO_CLIENT_CALLBACK_INFO* cli
     else
     {
         XIO_INSTANCE* xio_instance = (XIO_INSTANCE*)xio;
-        result = xio_instance->io_interface_description->interface_impl_open(xio_instance->concrete_xio_handle, client_cbs->on_io_open_complete,
-            client_cbs->on_io_open_complete_ctx, client_cbs->on_bytes_received, client_cbs->on_bytes_received_ctx, client_cbs->on_io_error,
-            client_cbs->on_io_error_ctx);
+        result = xio_instance->io_interface_description->interface_impl_open(xio_instance->concrete_xio_handle, on_io_open_complete, on_io_open_complete_context);
     }
     return result;
 }

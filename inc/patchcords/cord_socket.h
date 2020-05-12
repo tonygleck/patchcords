@@ -5,7 +5,7 @@
 
 #include "umock_c/umock_c_prod.h"
 #include "azure_macro_utils/macro_utils.h"
-#include "patchcords/xio_socket.h"
+#include "patchcords/cord_socket.h"
 
 #ifdef __cplusplus
 #include <cstdint>
@@ -23,7 +23,7 @@ MOCKABLE_FUNCTION(, int, xio_socket_listen, XIO_IMPL_HANDLE, xio, ON_INCOMING_CO
 MOCKABLE_FUNCTION(, int, xio_socket_close, XIO_IMPL_HANDLE, xio, ON_IO_CLOSE_COMPLETE, on_io_close_complete, void*, callback_context);
 MOCKABLE_FUNCTION(, int, xio_socket_send, XIO_IMPL_HANDLE, xio, const void*, buffer, size_t, size, ON_SEND_COMPLETE, on_send_complete, void*, callback_context);
 MOCKABLE_FUNCTION(, void, xio_socket_process_item, XIO_IMPL_HANDLE, xio);
-MOCKABLE_FUNCTION(, const IO_INTERFACE_DESCRIPTION*, xio_socket_get_interface);
+MOCKABLE_FUNCTION(, const IO_INTERFACE_DESCRIPTION*, xio_cord_get_interface);
 
 MOCKABLE_FUNCTION(, const char*, xio_socket_query_uri, XIO_IMPL_HANDLE, xio);
 MOCKABLE_FUNCTION(, uint16_t, xio_socket_query_port, XIO_IMPL_HANDLE, xio);

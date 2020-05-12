@@ -55,7 +55,7 @@ extern "C"
 
 #undef ENABLE_MOCKS
 
-#include "patchcords/xio_socket.h"
+#include "patchcords/cord_socket.h"
 
 static const char* TEST_HOSTNAME = "test.hostname.com";
 static const char* TEST_PORT_STRING = "8543";
@@ -1082,12 +1082,12 @@ CTEST_FUNCTION(xio_socket_query_port_success)
 }*/
 #endif
 
-CTEST_FUNCTION(xio_socket_get_interface_success)
+CTEST_FUNCTION(xio_cord_get_interface_success)
 {
     // arrange
 
     // act
-    const IO_INTERFACE_DESCRIPTION* io_desc = xio_socket_get_interface();
+    const IO_INTERFACE_DESCRIPTION* io_desc = xio_cord_get_interface();
 
     // assert
     CTEST_ASSERT_IS_NOT_NULL(io_desc->interface_impl_create);

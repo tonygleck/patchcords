@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 #include "patchcords/xio_client.h"
-#include "patchcords/xio_socket.h"
+#include "patchcords/cord_socket.h"
 
 typedef struct SAMPLE_DATA_TAG
 {
@@ -69,7 +69,7 @@ int main()
     client_info.on_io_error = on_xio_error;
     client_info.on_io_error_ctx = &data;
 
-    XIO_IMPL_HANDLE handle = xio_client_create(xio_socket_get_interface(), &config, &client_info);
+    XIO_IMPL_HANDLE handle = xio_client_create(xio_cord_get_interface(), &config, &client_info);
     if (handle == NULL)
     {
         printf("Failure creating socket");

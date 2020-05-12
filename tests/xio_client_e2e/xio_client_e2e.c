@@ -20,7 +20,7 @@
 #include "lib-util-c/alarm_timer.h"
 
 #include "patchcords/xio_client.h"
-#include "patchcords/xio_socket.h"
+#include "patchcords/cord_socket.h"
 
 static const char* TEST_HOSTNAME = "localhost";
 static uint32_t TEST_32_BYTES_SEND[32];
@@ -104,7 +104,7 @@ static XIO_INSTANCE_HANDLE create_io_ip_socket_objects(const SOCKETIO_CONFIG* co
 {
     XIO_INSTANCE_HANDLE result;
 
-    const IO_INTERFACE_DESCRIPTION* io_interface_description = xio_socket_get_interface();
+    const IO_INTERFACE_DESCRIPTION* io_interface_description = xio_cord_get_interface();
 
     // Create the listener
     result = xio_client_create(io_interface_description, config, client_cb);

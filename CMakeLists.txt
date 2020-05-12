@@ -53,7 +53,7 @@ compileTargetAsC99(patchcords)
 
 # Berkley socket library
 set(socket_h_files
-    ./inc/patchcords/xio_socket.h
+    ./inc/patchcords/cord_socket.h
 )
 set(socket_lib)
 set(dependent_libs)
@@ -66,7 +66,7 @@ if (WIN32)
 endif()
 if (UNIX)
     set(socket_c_files
-        ./src/xio_client_berkley.c
+        ./src/cord_client_berkley.c
     )
     set(socket_lib cord_berkley)
 endif()

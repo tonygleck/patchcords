@@ -26,7 +26,7 @@
 
 #include "patchcords/xio_client.h"
 #include "patchcords/socket_debug_shim.h"
-#include "patchcords/xio_socket.h"
+#include "patchcords/cord_socket.h"
 
 #include <sys/ioctl.h>
 #include <sys/types.h>
@@ -99,12 +99,17 @@ typedef struct PENDING_SEND_ITEM_TAG
     size_t data_len;
     ON_SEND_COMPLETE on_send_complete;
     void* send_ctx;
+    void* pending_data;
 } PENDING_SEND_ITEM;
 
 static void on_pending_list_item_destroy(void* user_ctx, void* remove_item)
 {
     (void)user_ctx;
     PENDING_SEND_ITEM* pending_item = (PENDING_SEND_ITEM*)remove_item;
+    if (pending_item->pending_data != NULL)
+    {
+        free(pending_item->pending_data);
+    }
     free(pending_item);
 }
 
@@ -286,6 +291,24 @@ static int construct_socket_object(SOCKET_INSTANCE* socket_impl)
     return result;
 }
 
+static int move_data_to_storage(PENDING_SEND_ITEM* pending_item, size_t offset)
+{
+    int result;
+    if ((pending_item->pending_data = malloc(pending_item->data_len - offset)) == NULL)
+    {
+        log_error("Failure allocating storage data");
+        result = __LINE__;
+    }
+    else
+    {
+        memcpy(pending_item->pending_data, pending_item->send_data + offset, pending_item->data_len - offset);
+        pending_item->data_len -= offset;
+        pending_item->send_data = NULL;
+        result = 0;
+    }
+    return result;
+}
+
 static int recv_socket_data(SOCKET_INSTANCE* socket_impl)
 {
     int result;
@@ -328,15 +351,32 @@ static SOCKET_SEND_RESULT send_socket_data(SOCKET_INSTANCE* socket_impl, PENDING
 {
     SOCKET_SEND_RESULT result;
 
-    // Send the current item
-    ssize_t send_res = send(socket_impl->socket, pending_item->send_data, pending_item->data_len, 0);
+    // Send the current item.  If the current item is NULL
+    // then the cached item needs to be sent
+    const void* data_to_send = pending_item->send_data;
+    if (data_to_send == NULL)
+    {
+        data_to_send = pending_item->pending_data;
+    }
+    ssize_t send_res = send(socket_impl->socket, data_to_send, pending_item->data_len, 0);
     if ((send_res < 0) || ((size_t)send_res != pending_item->data_len))
     {
         if (send_res == SOCKET_SEND_ERROR)
         {
             if (errno == EAGAIN)
             {
-                if (item_list_add_item(socket_impl->pending_list, pending_item) != 0)
+                // Need to copy the data here
+                if (move_data_to_storage(pending_item, 0) != 0)
+                {
+                    indicate_error(socket_impl, IO_ERROR_MEMORY);
+                    if (pending_item->on_send_complete != NULL)
+                    {
+                        pending_item->on_send_complete(pending_item->send_ctx, IO_SEND_ERROR);
+                    }
+                    log_error("Failure moving data to storage");
+                    result = SEND_RESULT_ERROR;
+                }
+                else if (item_list_add_item(socket_impl->pending_list, pending_item) != 0)
                 {
                     indicate_error(socket_impl, IO_ERROR_MEMORY);
                     if (pending_item->on_send_complete != NULL)
@@ -364,15 +404,24 @@ static SOCKET_SEND_RESULT send_socket_data(SOCKET_INSTANCE* socket_impl, PENDING
         else
         {
             // Partial send
-            pending_item->send_data += send_res;
-            pending_item->data_len -= send_res;
-            if (item_list_add_item(socket_impl->pending_list, pending_item) != 0)
+            if (move_data_to_storage(pending_item, send_res) != 0)
             {
                 indicate_error(socket_impl, IO_ERROR_MEMORY);
-                // if (pending_item->on_send_complete != NULL)
-                // {
-                //     pending_item->on_send_complete(pending_item->send_ctx, IO_SEND_ERROR);
-                // }
+                if (pending_item->on_send_complete != NULL)
+                {
+                    pending_item->on_send_complete(pending_item->send_ctx, IO_SEND_ERROR);
+                }
+                log_error("Failure moving data to storage");
+                result = SEND_RESULT_ERROR;
+            }
+            else if (item_list_add_item(socket_impl->pending_list, pending_item) != 0)
+            {
+                indicate_error(socket_impl, IO_ERROR_MEMORY);
+                if (pending_item->on_send_complete != NULL)
+                {
+                    pending_item->on_send_complete(pending_item->send_ctx, IO_SEND_ERROR);
+                }
+                free(pending_item->pending_data);
                 log_error("Failure allocating malloc");
                 result = SEND_RESULT_ERROR;
             }
@@ -553,11 +602,6 @@ int xio_socket_listen(XIO_IMPL_HANDLE xio, ON_INCOMING_CONNECT incoming_conn_cb,
         if (socket_impl->current_state == IO_STATE_OPENING || socket_impl->current_state == IO_STATE_OPEN)
         {
             log_error("Socket is in invalid state to open");
-            result = __LINE__;
-        }
-        else if (socket_impl->address_type != ADDRESS_TYPE_IP)
-        {
-            log_error("Socket is in an invalid state");
             result = __LINE__;
         }
         else if (construct_socket_object(socket_impl) != 0)
@@ -801,7 +845,7 @@ static const IO_INTERFACE_DESCRIPTION socket_io_interface =
     xio_socket_listen
 };
 
-const IO_INTERFACE_DESCRIPTION* xio_socket_get_interface(void)
+const IO_INTERFACE_DESCRIPTION* xio_cord_get_interface(void)
 {
     return &socket_io_interface;
 }

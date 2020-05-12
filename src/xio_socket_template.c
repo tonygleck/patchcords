@@ -7,7 +7,7 @@
 #include "lib-util-c/sys_debug_shim.h"
 #include "lib-util-c/app_logging.h"
 #include "patchcords/xio_client.h"
-#include "patchcords/xio_socket.h"
+#include "patchcords/cord_socket.h"
 
 typedef enum SOCKET_STATE_TAG
 {
@@ -198,7 +198,7 @@ static const IO_INTERFACE_DESCRIPTION socket_io_interface =
     xio_socket_dowork,
 };
 
-const IO_INTERFACE_DESCRIPTION* xio_socket_get_interface(void)
+const IO_INTERFACE_DESCRIPTION* xio_cord_get_interface(void)
 {
     return &socket_io_interface;
 }

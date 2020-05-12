@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 #include "patchcords/xio_client.h"
-#include "patchcords/xio_socket.h"
+#include "patchcords/cord_socket.h"
 
 typedef struct SAMPLE_DATA_TAG
 {
@@ -64,7 +64,7 @@ void on_accept_conn(void* context, const SOCKETIO_CONFIG* config)
     client_info.on_bytes_received_ctx = sample;
     client_info.on_io_error = on_xio_error;
     client_info.on_io_error_ctx = sample;
-    sample->incoming_socket = xio_client_create(xio_socket_get_interface(), config, &client_info);
+    sample->incoming_socket = xio_client_create(xio_cord_get_interface(), config, &client_info);
 }
 
 int main()
@@ -75,7 +75,7 @@ int main()
     config.port = 4444;
     config.address_type = ADDRESS_TYPE_IP;
 
-    const IO_INTERFACE_DESCRIPTION* io_desc = xio_socket_get_interface();
+    const IO_INTERFACE_DESCRIPTION* io_desc = xio_cord_get_interface();
     XIO_CLIENT_CALLBACK_INFO client_info;
     client_info.on_bytes_received = on_xio_bytes_recv;
     client_info.on_bytes_received_ctx = &data;

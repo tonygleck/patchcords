@@ -52,7 +52,7 @@ extern "C"
 
 #undef ENABLE_MOCKS
 
-#include "patchcords/xio_socket.h"
+#include "patchcords/cord_socket.h"
 
 static const char* TEST_HOSTNAME = "test.hostname.com";
 static size_t TEST_SEND_BUFFER_LEN = 16;
@@ -212,7 +212,7 @@ static void on_umock_c_error(UMOCK_C_ERROR_CODE error_code)
     CTEST_ASSERT_FAIL("umock_c reported error: %s", MU_ENUM_TO_STRING(UMOCK_C_ERROR_CODE, error_code));
 }
 
-CTEST_BEGIN_TEST_SUITE(xio_socket_berkley_ut)
+CTEST_BEGIN_TEST_SUITE(cord_client_berkley_ut)
 
 CTEST_SUITE_INITIALIZE()
 {
@@ -615,6 +615,30 @@ CTEST_FUNCTION(xio_socket_listen_fail)
     umock_c_negative_tests_deinit();
 }
 
+CTEST_FUNCTION(xio_socket_listen_open_fail)
+{
+    // arrange
+    SOCKETIO_CONFIG config = {0};
+    config.hostname = TEST_HOSTNAME;
+    config.port = TEST_PORT_VALUE;
+    config.address_type = ADDRESS_TYPE_IP;
+    XIO_IMPL_HANDLE handle = xio_socket_create(&config, test_on_bytes_recv, NULL, test_on_error, NULL);
+    (void)xio_socket_open(handle, test_on_open_complete, NULL);
+    xio_socket_process_item(handle);
+    umock_c_reset_all_calls();
+
+    // act
+    int result = xio_socket_listen(handle, test_on_accept_conn, TEST_USER_CONTEXT_VALUE);
+
+    // assert
+    CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    my_mem_shim_free(g_socket);
+    xio_socket_destroy(handle);
+}
+
 CTEST_FUNCTION(xio_socket_listen_handle_NULL_fail)
 {
     // arrange
@@ -783,7 +807,7 @@ CTEST_FUNCTION(xio_socket_send_success)
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
-    STRICT_EXPECTED_CALL(send(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, 0));//.SetReturn(g_buffer_len);
+    STRICT_EXPECTED_CALL(send(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, 0));
     STRICT_EXPECTED_CALL(test_on_send_complete(IGNORED_ARG, IO_SEND_OK));
     STRICT_EXPECTED_CALL(free(IGNORED_ARG));
 
@@ -829,6 +853,82 @@ CTEST_FUNCTION(xio_socket_send_no_callback_success)
     xio_socket_destroy(handle);
 }
 
+CTEST_FUNCTION(xio_socket_send_eagain_success)
+{
+    // arrange
+    SOCKETIO_CONFIG config = {0};
+    config.hostname = TEST_HOSTNAME;
+    config.port = TEST_PORT_VALUE;
+    config.address_type = ADDRESS_TYPE_IP;
+    XIO_IMPL_HANDLE handle = xio_socket_create(&config, test_on_bytes_recv, NULL, test_on_error, NULL);
+    (void)xio_socket_open(handle, test_on_open_complete, NULL);
+    xio_socket_process_item(handle);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
+    STRICT_EXPECTED_CALL(send(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, 0)).SetReturn(-1);
+    STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
+    STRICT_EXPECTED_CALL(item_list_add_item(IGNORED_ARG, IGNORED_ARG));
+
+    // act
+    errno = EAGAIN;
+    int result = xio_socket_send(handle, g_send_buffer, g_buffer_len, test_on_send_complete, TEST_USER_CONTEXT_VALUE);
+
+    // assert
+    CTEST_ASSERT_ARE_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    (void)xio_socket_close(handle, test_on_close_complete, TEST_USER_CONTEXT_VALUE);
+    xio_socket_process_item(handle);
+    xio_socket_destroy(handle);
+}
+
+CTEST_FUNCTION(xio_socket_send_eagain_fail)
+{
+    // arrange
+    SOCKETIO_CONFIG config = {0};
+    config.hostname = TEST_HOSTNAME;
+    config.port = TEST_PORT_VALUE;
+    config.address_type = ADDRESS_TYPE_IP;
+    XIO_IMPL_HANDLE handle = xio_socket_create(&config, test_on_bytes_recv, NULL, test_on_error, NULL);
+    (void)xio_socket_open(handle, test_on_open_complete, NULL);
+    xio_socket_process_item(handle);
+    int negativeTestsInitResult = umock_c_negative_tests_init();
+    CTEST_ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
+    STRICT_EXPECTED_CALL(send(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, 0)).CallCannotFail().SetReturn(-1);
+    STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
+    STRICT_EXPECTED_CALL(item_list_add_item(IGNORED_ARG, IGNORED_ARG));
+
+    umock_c_negative_tests_snapshot();
+
+    size_t count = umock_c_negative_tests_call_count();
+    for (size_t index = 0; index < count; index++)
+    {
+        if (umock_c_negative_tests_can_call_fail(index))
+        {
+            umock_c_negative_tests_reset();
+            umock_c_negative_tests_fail_call(index);
+
+            // act
+            errno = EAGAIN;
+            int result = xio_socket_send(handle, g_send_buffer, g_buffer_len, test_on_send_complete, TEST_USER_CONTEXT_VALUE);
+
+            // assert
+            CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
+        }
+    }
+
+    // cleanup
+    (void)xio_socket_close(handle, test_on_close_complete, TEST_USER_CONTEXT_VALUE);
+    xio_socket_process_item(handle);
+    xio_socket_destroy(handle);
+    umock_c_negative_tests_deinit();
+}
+
 CTEST_FUNCTION(xio_socket_send_partial_send_success)
 {
     // arrange
@@ -844,6 +944,7 @@ CTEST_FUNCTION(xio_socket_send_partial_send_success)
     size_t partial_send_len = g_buffer_len/2;
     STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
     STRICT_EXPECTED_CALL(send(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG)).SetReturn(partial_send_len);
+    STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
     STRICT_EXPECTED_CALL(item_list_add_item(IGNORED_ARG, IGNORED_ARG));
 
     // act
@@ -851,6 +952,39 @@ CTEST_FUNCTION(xio_socket_send_partial_send_success)
 
     // assert
     CTEST_ASSERT_ARE_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    (void)xio_socket_close(handle, test_on_close_complete, NULL);
+    xio_socket_process_item(handle);
+    xio_socket_destroy(handle);
+}
+
+CTEST_FUNCTION(xio_socket_send_partial_send_malloc_fail)
+{
+    // arrange
+    SOCKETIO_CONFIG config = {0};
+    config.hostname = TEST_HOSTNAME;
+    config.port = TEST_PORT_VALUE;
+    config.address_type = ADDRESS_TYPE_IP;
+    XIO_IMPL_HANDLE handle = xio_socket_create(&config, test_on_bytes_recv, TEST_USER_CONTEXT_VALUE, test_on_error, TEST_USER_CONTEXT_VALUE);
+    (void)xio_socket_open(handle, test_on_open_complete, NULL);
+    xio_socket_process_item(handle);
+    umock_c_reset_all_calls();
+
+    size_t partial_send_len = g_buffer_len/2;
+    STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
+    STRICT_EXPECTED_CALL(send(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG)).SetReturn(partial_send_len);
+    STRICT_EXPECTED_CALL(malloc(IGNORED_ARG)).SetReturn(NULL);
+    STRICT_EXPECTED_CALL(test_on_error(TEST_USER_CONTEXT_VALUE, IO_ERROR_MEMORY));
+    STRICT_EXPECTED_CALL(test_on_send_complete(TEST_USER_CONTEXT_VALUE, IO_SEND_ERROR));
+    STRICT_EXPECTED_CALL(free(IGNORED_ARG));
+
+    // act
+    int result = xio_socket_send(handle, g_send_buffer, g_buffer_len, test_on_send_complete, TEST_USER_CONTEXT_VALUE);
+
+    // assert
+    CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
     CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
@@ -874,8 +1008,11 @@ CTEST_FUNCTION(xio_socket_send_partial_send_fail)
     size_t partial_send_len = g_buffer_len/2;
     STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
     STRICT_EXPECTED_CALL(send(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG)).SetReturn(partial_send_len);
+    STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
     STRICT_EXPECTED_CALL(item_list_add_item(IGNORED_ARG, IGNORED_ARG)).SetReturn(__LINE__);
     STRICT_EXPECTED_CALL(test_on_error(TEST_USER_CONTEXT_VALUE, IO_ERROR_MEMORY));
+    STRICT_EXPECTED_CALL(test_on_send_complete(TEST_USER_CONTEXT_VALUE, IO_SEND_ERROR));
+    STRICT_EXPECTED_CALL(free(IGNORED_ARG));
     STRICT_EXPECTED_CALL(free(IGNORED_ARG));
 
     // act
@@ -1246,12 +1383,12 @@ CTEST_FUNCTION(xio_socket_query_port_success)
     xio_socket_destroy(handle);
 }
 
-CTEST_FUNCTION(xio_socket_get_interface_success)
+CTEST_FUNCTION(xio_cord_get_interface_success)
 {
     // arrange
 
     // act
-    const IO_INTERFACE_DESCRIPTION* io_desc = xio_socket_get_interface();
+    const IO_INTERFACE_DESCRIPTION* io_desc = xio_cord_get_interface();
 
     // assert
     CTEST_ASSERT_IS_NOT_NULL(io_desc->interface_impl_create);
@@ -1268,4 +1405,4 @@ CTEST_FUNCTION(xio_socket_get_interface_success)
     // cleanup
 }
 
-CTEST_END_TEST_SUITE(xio_socket_berkley_ut)
+CTEST_END_TEST_SUITE(cord_client_berkley_ut)

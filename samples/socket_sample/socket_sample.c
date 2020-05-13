@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "patchcords/xio_client.h"
+#include "patchcords/patchcord_client.h"
 #include "patchcords/cord_socket.h"
 
 typedef struct SAMPLE_DATA_TAG
@@ -63,41 +63,41 @@ int main()
     config.port = 4444;
     config.address_type = ADDRESS_TYPE_IP;
 
-    XIO_CLIENT_CALLBACK_INFO client_info;
+    PATCHCORD_CALLBACK_INFO client_info;
     client_info.on_bytes_received = on_xio_bytes_recv;
     client_info.on_bytes_received_ctx = &data;
     client_info.on_io_error = on_xio_error;
     client_info.on_io_error_ctx = &data;
 
-    XIO_IMPL_HANDLE handle = xio_client_create(xio_cord_get_interface(), &config, &client_info);
+    CORD_HANDLE handle = patchcord_client_create(xio_cord_get_interface(), &config, &client_info);
     if (handle == NULL)
     {
         printf("Failure creating socket");
     }
     else
     {
-        if (xio_client_open(handle, on_xio_open_complete, &data) != 0)
+        if (patchcord_client_open(handle, on_xio_open_complete, &data) != 0)
         {
             printf("Failed socket open");
         }
 
         do
         {
-            xio_client_process_item(handle);
+            patchcord_client_process_item(handle);
 
             if (data.socket_open > 0)
             {
                 if (data.send_complete == 0)
                 {
                     // Send socket
-                    if (xio_client_send(handle, TEST_SEND_DATA, strlen(TEST_SEND_DATA), on_xio_send_complete, &data) != 0)
+                    if (patchcord_client_send(handle, TEST_SEND_DATA, strlen(TEST_SEND_DATA), on_xio_send_complete, &data) != 0)
                     {
                         printf("Failure sending data to socket\n");
                     }
                 }
                 else if (data.send_complete >= 2)
                 {
-                    xio_client_close(handle, on_xio_close_complete, &data);
+                    patchcord_client_close(handle, on_xio_close_complete, &data);
                 }
             }
             if (data.socket_closed > 0)
@@ -106,7 +106,7 @@ int main()
             }
         } while (data.keep_running == 0);
 
-        xio_client_destroy(handle);
+        patchcord_client_destroy(handle);
     }
     return 0;
 }

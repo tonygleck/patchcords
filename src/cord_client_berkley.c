@@ -24,7 +24,7 @@
 #include "lib-util-c/item_list.h"
 #include "lib-util-c/crt_extensions.h"
 
-#include "patchcords/xio_client.h"
+#include "patchcords/patchcord_client.h"
 #include "patchcords/socket_debug_shim.h"
 #include "patchcords/cord_socket.h"
 
@@ -99,16 +99,17 @@ typedef struct PENDING_SEND_ITEM_TAG
     size_t data_len;
     ON_SEND_COMPLETE on_send_complete;
     void* send_ctx;
-    void* pending_data;
+    void* cache_data;
 } PENDING_SEND_ITEM;
 
 static void on_pending_list_item_destroy(void* user_ctx, void* remove_item)
 {
     (void)user_ctx;
     PENDING_SEND_ITEM* pending_item = (PENDING_SEND_ITEM*)remove_item;
-    if (pending_item->pending_data != NULL)
+    if (pending_item->cache_data != NULL)
     {
-        free(pending_item->pending_data);
+        free(pending_item->cache_data);
+        pending_item->cache_data = NULL;
     }
     free(pending_item);
 }
@@ -294,17 +295,44 @@ static int construct_socket_object(SOCKET_INSTANCE* socket_impl)
 static int move_data_to_storage(PENDING_SEND_ITEM* pending_item, size_t offset)
 {
     int result;
-    if ((pending_item->pending_data = malloc(pending_item->data_len - offset)) == NULL)
+    if (pending_item->cache_data == NULL)
     {
-        log_error("Failure allocating storage data");
-        result = __LINE__;
+        if ((pending_item->cache_data = malloc(pending_item->data_len - offset)) == NULL)
+        {
+            log_error("Failure allocating storage data");
+            result = __LINE__;
+        }
+        else
+        {
+            memcpy(pending_item->cache_data, pending_item->send_data + offset, pending_item->data_len - offset);
+            pending_item->data_len -= offset;
+            pending_item->send_data = NULL;
+            result = 0;
+        }
     }
     else
     {
-        memcpy(pending_item->pending_data, pending_item->send_data + offset, pending_item->data_len - offset);
-        pending_item->data_len -= offset;
-        pending_item->send_data = NULL;
-        result = 0;
+        if (offset > 0)
+        {
+            void* temp_data = malloc(pending_item->data_len - offset);
+            if (temp_data != NULL)
+            {
+                log_error("Failure reallocating storage data");
+                result = __LINE__;
+            }
+            else
+            {
+                memcpy(temp_data, pending_item->cache_data, pending_item->data_len - offset);
+                free(pending_item->cache_data);
+                pending_item->cache_data = temp_data;
+                pending_item->data_len -= offset;
+                result = 0;
+            }
+        }
+        else
+        {
+            result = 0;
+        }
     }
     return result;
 }
@@ -356,7 +384,7 @@ static SOCKET_SEND_RESULT send_socket_data(SOCKET_INSTANCE* socket_impl, PENDING
     const void* data_to_send = pending_item->send_data;
     if (data_to_send == NULL)
     {
-        data_to_send = pending_item->pending_data;
+        data_to_send = pending_item->cache_data;
     }
     ssize_t send_res = send(socket_impl->socket, data_to_send, pending_item->data_len, 0);
     if ((send_res < 0) || ((size_t)send_res != pending_item->data_len))
@@ -421,7 +449,7 @@ static SOCKET_SEND_RESULT send_socket_data(SOCKET_INSTANCE* socket_impl, PENDING
                 {
                     pending_item->on_send_complete(pending_item->send_ctx, IO_SEND_ERROR);
                 }
-                free(pending_item->pending_data);
+                free(pending_item->cache_data);
                 log_error("Failure allocating malloc");
                 result = SEND_RESULT_ERROR;
             }
@@ -515,7 +543,7 @@ static SOCKET_INSTANCE* create_socket_info(const SOCKETIO_CONFIG* config)
     return result;
 }
 
-XIO_IMPL_HANDLE xio_socket_create(const void* parameters, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_context, ON_IO_ERROR on_io_error, void* on_io_error_context)
+CORD_HANDLE xio_socket_create(const void* parameters, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_context, ON_IO_ERROR on_io_error, void* on_io_error_context)
 {
     SOCKET_INSTANCE* result;
     if (parameters == NULL)
@@ -534,12 +562,11 @@ XIO_IMPL_HANDLE xio_socket_create(const void* parameters, ON_BYTES_RECEIVED on_b
         result->on_bytes_received_context = on_bytes_received_context;
         result->on_io_error = on_io_error;
         result->on_io_error_context = on_io_error_context;
-
     }
-    return (XIO_IMPL_HANDLE)result;
+    return (CORD_HANDLE)result;
 }
 
-void xio_socket_destroy(XIO_IMPL_HANDLE xio)
+void xio_socket_destroy(CORD_HANDLE xio)
 {
     if (xio != NULL)
     {
@@ -554,7 +581,7 @@ void xio_socket_destroy(XIO_IMPL_HANDLE xio)
     }
 }
 
-int xio_socket_open(XIO_IMPL_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_context)
+int xio_socket_open(CORD_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_context)
 {
     int result;
     if (xio == NULL)
@@ -586,7 +613,7 @@ int xio_socket_open(XIO_IMPL_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete
     return result;
 }
 
-int xio_socket_listen(XIO_IMPL_HANDLE xio, ON_INCOMING_CONNECT incoming_conn_cb, void* user_ctx)
+int xio_socket_listen(CORD_HANDLE xio, ON_INCOMING_CONNECT incoming_conn_cb, void* user_ctx)
 {
     uint16_t result;
     if (xio == NULL || incoming_conn_cb == NULL)
@@ -648,7 +675,7 @@ int xio_socket_listen(XIO_IMPL_HANDLE xio, ON_INCOMING_CONNECT incoming_conn_cb,
     return result;
 }
 
-int xio_socket_close(XIO_IMPL_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_complete, void* ctx)
+int xio_socket_close(CORD_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_complete, void* ctx)
 {
     int result;
     if (xio == NULL)
@@ -675,7 +702,7 @@ int xio_socket_close(XIO_IMPL_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_compl
     return result;
 }
 
-int xio_socket_send(XIO_IMPL_HANDLE xio, const void* buffer, size_t size, ON_SEND_COMPLETE on_send_complete, void* callback_context)
+int xio_socket_send(CORD_HANDLE xio, const void* buffer, size_t size, ON_SEND_COMPLETE on_send_complete, void* callback_context)
 {
     int result;
     if (xio == NULL || buffer == NULL || size == 0)
@@ -700,6 +727,7 @@ int xio_socket_send(XIO_IMPL_HANDLE xio, const void* buffer, size_t size, ON_SEN
         }
         else
         {
+            memset(send_item, 0, sizeof(PENDING_SEND_ITEM));
             send_item->on_send_complete = on_send_complete;
             send_item->send_ctx = callback_context;
             send_item->send_data = buffer;
@@ -727,7 +755,7 @@ int xio_socket_send(XIO_IMPL_HANDLE xio, const void* buffer, size_t size, ON_SEN
     return result;
 }
 
-void xio_socket_process_item(XIO_IMPL_HANDLE xio)
+void xio_socket_process_item(CORD_HANDLE xio)
 {
     if (xio != NULL)
     {
@@ -800,7 +828,7 @@ void xio_socket_process_item(XIO_IMPL_HANDLE xio)
     }
 }
 
-const char* xio_socket_query_uri(XIO_IMPL_HANDLE xio)
+const char* xio_socket_query_uri(CORD_HANDLE xio)
 {
     const char* result;
     if (xio == NULL)
@@ -816,7 +844,7 @@ const char* xio_socket_query_uri(XIO_IMPL_HANDLE xio)
     return result;
 }
 
-uint16_t xio_socket_query_port(XIO_IMPL_HANDLE xio)
+uint16_t xio_socket_query_port(CORD_HANDLE xio)
 {
     uint16_t result;
     if (xio == NULL)

@@ -31,7 +31,7 @@ static void my_mem_shim_free(void* ptr)
 #include "umock_c/umocktypes_charptr.h"
 
 #define ENABLE_MOCKS
-#include "patchcords/xio_client.h"
+#include "patchcords/patchcord_client.h"
 #include "patchcords/socket_debug_shim.h"
 #include "umock_c/umock_c_prod.h"
 #include "lib-util-c/sys_debug_shim.h"
@@ -304,7 +304,7 @@ static void on_umock_c_error(UMOCK_C_ERROR_CODE error_code)
     CTEST_ASSERT_FAIL("umock_c reported error :%s", MU_ENUM_TO_STRING(UMOCK_C_ERROR_CODE, error_code));
 }
 
-CTEST_BEGIN_TEST_SUITE(xio_client_winsock_ut)
+CTEST_BEGIN_TEST_SUITE(patchcord_client_winsock_ut)
 
 CTEST_SUITE_INITIALIZE()
 {
@@ -312,7 +312,7 @@ CTEST_SUITE_INITIALIZE()
 
     CTEST_ASSERT_ARE_EQUAL(int, 0, umocktypes_charptr_register_types());
 
-    REGISTER_UMOCK_ALIAS_TYPE(XIO_IMPL_HANDLE, void*);
+    REGISTER_UMOCK_ALIAS_TYPE(CORD_HANDLE, void*);
     REGISTER_UMOCK_ALIAS_TYPE(ITEM_LIST_HANDLE, void*);
     REGISTER_UMOCK_ALIAS_TYPE(ITEM_LIST_DESTROY_ITEM, void*);
     REGISTER_UMOCK_ALIAS_TYPE(socklen_t, int);
@@ -412,7 +412,7 @@ CTEST_FUNCTION(xio_socket_create_succeed)
     setup_xio_socket_create_mocks();
 
     // act
-    XIO_IMPL_HANDLE handle = xio_socket_create(&config);
+    CORD_HANDLE handle = xio_socket_create(&config);
 
     // assert
     CTEST_ASSERT_IS_NOT_NULL(handle);
@@ -447,7 +447,7 @@ CTEST_FUNCTION(xio_socket_create_fail)
             umock_c_negative_tests_fail_call(index);
 
             // act
-            XIO_IMPL_HANDLE handle = xio_socket_create(&config);
+            CORD_HANDLE handle = xio_socket_create(&config);
 
             // assert
             CTEST_ASSERT_IS_NULL(handle, "xio_socket_create failure %zu/%zu", index, count);
@@ -462,7 +462,7 @@ CTEST_FUNCTION(xio_socket_create_config_NULL_fail)
     // arrange
 
     // act
-    XIO_IMPL_HANDLE handle = xio_socket_create(NULL);
+    CORD_HANDLE handle = xio_socket_create(NULL);
 
     // assert
     CTEST_ASSERT_IS_NULL(handle);
@@ -491,7 +491,7 @@ CTEST_FUNCTION(xio_socket_destroy_succeed)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    XIO_IMPL_HANDLE handle = xio_socket_create(&config);
+    CORD_HANDLE handle = xio_socket_create(&config);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(free(IGNORED_ARG));
@@ -528,7 +528,7 @@ CTEST_FUNCTION(xio_socket_open_fail)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    XIO_IMPL_HANDLE handle = xio_socket_create(&config);
+    CORD_HANDLE handle = xio_socket_create(&config);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(socket(AF_INET, SOCK_STREAM, 0)).SetReturn(-1);
@@ -551,7 +551,7 @@ CTEST_FUNCTION(xio_socket_open_succeed)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    XIO_IMPL_HANDLE handle = xio_socket_create(&config);
+    CORD_HANDLE handle = xio_socket_create(&config);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(socket(AF_INET, SOCK_STREAM, 0));
@@ -577,7 +577,7 @@ CTEST_FUNCTION(xio_socket_open_UDP_succeed)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_UDP;
-    XIO_IMPL_HANDLE handle = xio_socket_create(&config);
+    CORD_HANDLE handle = xio_socket_create(&config);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP));
@@ -601,7 +601,7 @@ CTEST_FUNCTION(xio_socket_open_call_when_open_fail)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    XIO_IMPL_HANDLE handle = xio_socket_create(&config);
+    CORD_HANDLE handle = xio_socket_create(&config);
     int result = xio_socket_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
     umock_c_reset_all_calls();
 
@@ -638,7 +638,7 @@ CTEST_FUNCTION(xio_socket_close_not_open_fail)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    XIO_IMPL_HANDLE handle = xio_socket_create(&config);
+    CORD_HANDLE handle = xio_socket_create(&config);
     umock_c_reset_all_calls();
 
     // act
@@ -660,7 +660,7 @@ CTEST_FUNCTION(xio_socket_close_success)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    XIO_IMPL_HANDLE handle = xio_socket_create(&config);
+    CORD_HANDLE handle = xio_socket_create(&config);
     (void)xio_socket_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
     umock_c_reset_all_calls();
 
@@ -701,7 +701,7 @@ CTEST_FUNCTION(xio_socket_send_not_open_fail)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    XIO_IMPL_HANDLE handle = xio_socket_create(&config);
+    CORD_HANDLE handle = xio_socket_create(&config);
     umock_c_reset_all_calls();
 
     // act
@@ -722,7 +722,7 @@ CTEST_FUNCTION(xio_socket_send_success)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    XIO_IMPL_HANDLE handle = xio_socket_create(&config);
+    CORD_HANDLE handle = xio_socket_create(&config);
     (void)xio_socket_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
     xio_socket_process_item(handle);
     umock_c_reset_all_calls();
@@ -752,7 +752,7 @@ CTEST_FUNCTION(xio_socket_send_no_callback_success)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    XIO_IMPL_HANDLE handle = xio_socket_create(&config);
+    CORD_HANDLE handle = xio_socket_create(&config);
     (void)xio_socket_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
     xio_socket_process_item(handle);
     umock_c_reset_all_calls();
@@ -782,7 +782,7 @@ CTEST_FUNCTION(xio_socket_send_partial_send_success)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    XIO_IMPL_HANDLE handle = xio_socket_create(&config);
+    CORD_HANDLE handle = xio_socket_create(&config);
     (void)xio_socket_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
     xio_socket_process_item(handle);
     umock_c_reset_all_calls();
@@ -825,7 +825,7 @@ CTEST_FUNCTION(xio_socket_process_item_open_success)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    XIO_IMPL_HANDLE handle = xio_socket_create(&config);
+    CORD_HANDLE handle = xio_socket_create(&config);
     (void)xio_socket_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
     umock_c_reset_all_calls();
 
@@ -850,7 +850,7 @@ CTEST_FUNCTION(xio_socket_process_item_getaddrinfo_fail)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    XIO_IMPL_HANDLE handle = xio_socket_create(&config);
+    CORD_HANDLE handle = xio_socket_create(&config);
     (void)xio_socket_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
     umock_c_reset_all_calls();
 
@@ -876,7 +876,7 @@ CTEST_FUNCTION(xio_socket_process_item_connect_fail)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    XIO_IMPL_HANDLE handle = xio_socket_create(&config);
+    CORD_HANDLE handle = xio_socket_create(&config);
     (void)xio_socket_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
     umock_c_reset_all_calls();
 
@@ -905,7 +905,7 @@ CTEST_FUNCTION(xio_socket_process_item_success)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    XIO_IMPL_HANDLE handle = xio_socket_create(&config);
+    CORD_HANDLE handle = xio_socket_create(&config);
     (void)xio_socket_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
     xio_socket_process_item(handle);
     umock_c_reset_all_calls();
@@ -932,7 +932,7 @@ CTEST_FUNCTION(xio_socket_process_item_recv_success)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    XIO_IMPL_HANDLE handle = xio_socket_create(&config);
+    CORD_HANDLE handle = xio_socket_create(&config);
     (void)xio_socket_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
     xio_socket_process_item(handle);
     umock_c_reset_all_calls();
@@ -962,7 +962,7 @@ CTEST_FUNCTION(xio_socket_process_item_recv_success)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    XIO_IMPL_HANDLE handle = xio_socket_create(&config);
+    CORD_HANDLE handle = xio_socket_create(&config);
     (void)xio_socket_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
     xio_socket_process_item(handle);
     umock_c_reset_all_calls();
@@ -990,7 +990,7 @@ CTEST_FUNCTION(xio_socket_process_item_recv_general_fail)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    XIO_IMPL_HANDLE handle = xio_socket_create(&config);
+    CORD_HANDLE handle = xio_socket_create(&config);
     (void)xio_socket_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
     xio_socket_process_item(handle);
     umock_c_reset_all_calls();
@@ -1032,7 +1032,7 @@ CTEST_FUNCTION(xio_socket_query_endpoint_success)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    XIO_IMPL_HANDLE handle = xio_socket_create(&config);
+    CORD_HANDLE handle = xio_socket_create(&config);
     umock_c_reset_all_calls();
 
     // act
@@ -1067,7 +1067,7 @@ CTEST_FUNCTION(xio_socket_query_port_success)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    XIO_IMPL_HANDLE handle = xio_socket_create(&config);
+    CORD_HANDLE handle = xio_socket_create(&config);
     umock_c_reset_all_calls();
 
     // act
@@ -1104,4 +1104,4 @@ CTEST_FUNCTION(xio_cord_get_interface_success)
     // cleanup
 }
 
-CTEST_END_TEST_SUITE(xio_client_winsock_ut)
+CTEST_END_TEST_SUITE(patchcord_client_winsock_ut)

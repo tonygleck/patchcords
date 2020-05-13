@@ -5,14 +5,14 @@ cmake_minimum_required(VERSION 3.5)
 
 compileAsC11()
 
-set(theseTestsName xio_client_ut)
+set(theseTestsName patchcord_client_ut)
 
 set(${theseTestsName}_test_files
     ${theseTestsName}.c
 )
 
 set(${theseTestsName}_c_files
-    ../../src/xio_client.c
+    ../../src/patchcord_client.c
 )
 
 set(${theseTestsName}_h_files

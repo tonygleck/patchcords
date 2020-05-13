@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.5)
 
 compileAsC11()
 
-set(theseTestsName xio_client_e2e)
+set(theseTestsName patchcord_client_e2e)
 
 set(${theseTestsName}_test_files
     ${theseTestsName}.c

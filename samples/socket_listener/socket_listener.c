@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "patchcords/xio_client.h"
+#include "patchcords/patchcord_client.h"
 #include "patchcords/cord_socket.h"
 
 typedef struct SAMPLE_DATA_TAG
@@ -14,7 +14,7 @@ typedef struct SAMPLE_DATA_TAG
     int socket_open;
     int socket_closed;
     int send_complete;
-    XIO_INSTANCE_HANDLE incoming_socket;
+    PATCH_INSTANCE_HANDLE incoming_socket;
 } SAMPLE_DATA;
 
 static const char* TEST_SEND_DATA = "This is a test message\n";
@@ -59,12 +59,12 @@ void on_xio_error(void* context, IO_ERROR_RESULT error_result)
 void on_accept_conn(void* context, const SOCKETIO_CONFIG* config)
 {
     SAMPLE_DATA* sample = (SAMPLE_DATA*)context;
-    XIO_CLIENT_CALLBACK_INFO client_info;
+    PATCHCORD_CALLBACK_INFO client_info;
     client_info.on_bytes_received = on_xio_bytes_recv;
     client_info.on_bytes_received_ctx = sample;
     client_info.on_io_error = on_xio_error;
     client_info.on_io_error_ctx = sample;
-    sample->incoming_socket = xio_client_create(xio_cord_get_interface(), config, &client_info);
+    sample->incoming_socket = patchcord_client_create(xio_cord_get_interface(), config, &client_info);
 }
 
 int main()
@@ -76,20 +76,20 @@ int main()
     config.address_type = ADDRESS_TYPE_IP;
 
     const IO_INTERFACE_DESCRIPTION* io_desc = xio_cord_get_interface();
-    XIO_CLIENT_CALLBACK_INFO client_info;
+    PATCHCORD_CALLBACK_INFO client_info;
     client_info.on_bytes_received = on_xio_bytes_recv;
     client_info.on_bytes_received_ctx = &data;
     client_info.on_io_error = on_xio_error;
     client_info.on_io_error_ctx = &data;
 
-    XIO_INSTANCE_HANDLE xio_handle = xio_client_create(io_desc, &config, &client_info);
+    PATCH_INSTANCE_HANDLE xio_handle = patchcord_client_create(io_desc, &config, &client_info);
     if (xio_handle == NULL)
     {
         printf("Failure creating socket");
     }
     else
     {
-        if (xio_client_listen(xio_handle, on_accept_conn, &data) != 0)
+        if (patchcord_client_listen(xio_handle, on_accept_conn, &data) != 0)
         {
             printf("Failed socket open");
         }
@@ -97,7 +97,7 @@ int main()
         {
             do
             {
-                xio_client_process_item(xio_handle);
+                patchcord_client_process_item(xio_handle);
 
                 if (data.socket_open > 0)
                 {
@@ -108,7 +108,7 @@ int main()
                 }
             } while (data.keep_running == 0);
         }
-        xio_client_destroy(xio_handle);
+        patchcord_client_destroy(xio_handle);
     }
     return 0;
 }

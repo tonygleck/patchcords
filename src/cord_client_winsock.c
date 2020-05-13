@@ -19,7 +19,7 @@
 #include "lib-util-c/app_logging.h"
 #include "lib-util-c/item_list.h"
 
-#include "patchcords/xio_client.h"
+#include "patchcords/patchcord_client.h"
 #include "patchcords/socket_debug_shim.h"
 #include "patchcords/cord_socket.h"
 
@@ -387,7 +387,7 @@ static SOCKET_SEND_RESULT send_socket_cached_data(SOCKET_INSTANCE* socket_impl)
     return result;
 }
 
-XIO_IMPL_HANDLE xio_socket_create(const void* parameters)
+CORD_HANDLE xio_socket_create(const void* parameters, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_context, ON_IO_ERROR on_io_error, void* on_io_error_context)
 {
     SOCKET_INSTANCE* result;
     WSADATA wsa_data;
@@ -427,11 +427,18 @@ XIO_IMPL_HANDLE xio_socket_create(const void* parameters)
             free(result);
             result = NULL;
         }
+        else
+        {
+            result->on_bytes_received = on_bytes_received;
+            result->on_bytes_received_context = on_bytes_received_context;
+            result->on_io_error = on_io_error;
+            result->on_io_error_context = on_io_error_context;
+        }
     }
-    return (XIO_IMPL_HANDLE)result;
+    return (CORD_HANDLE)result;
 }
 
-void xio_socket_destroy(XIO_IMPL_HANDLE xio)
+void xio_socket_destroy(CORD_HANDLE xio)
 {
     if (xio != NULL)
     {
@@ -439,10 +446,11 @@ void xio_socket_destroy(XIO_IMPL_HANDLE xio)
         free(socket_impl->hostname);
         item_list_destroy(socket_impl->pending_list);
         free(socket_impl);
+        WSACleanup();
     }
 }
 
-int xio_socket_open(XIO_IMPL_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_context, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_context, ON_IO_ERROR on_io_error, void* on_io_error_context)
+int xio_socket_open(CORD_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_context)
 {
     int result;
     if (xio == NULL)
@@ -468,17 +476,13 @@ int xio_socket_open(XIO_IMPL_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete
             socket_impl->current_state = IO_STATE_OPENING;
             socket_impl->on_io_open_complete = on_io_open_complete;
             socket_impl->on_io_open_complete_context = on_io_open_complete_context;
-            socket_impl->on_bytes_received = on_bytes_received;
-            socket_impl->on_bytes_received_context = on_bytes_received_context;
-            socket_impl->on_io_error = on_io_error;
-            socket_impl->on_io_error_context = on_io_error_context;
             result = 0;
         }
     }
     return result;
 }
 
-int xio_socket_listen(XIO_IMPL_HANDLE xio, ON_INCOMING_CONNECT incoming_conn_cb, void* user_ctx)
+int xio_socket_listen(CORD_HANDLE xio, ON_INCOMING_CONNECT incoming_conn_cb, void* user_ctx)
 {
     uint16_t result;
     if (xio == NULL || incoming_conn_cb == NULL)
@@ -544,7 +548,7 @@ int xio_socket_listen(XIO_IMPL_HANDLE xio, ON_INCOMING_CONNECT incoming_conn_cb,
     return result;
 }
 
-int xio_socket_close(XIO_IMPL_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_complete, void* ctx)
+int xio_socket_close(CORD_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_complete, void* ctx)
 {
     int result;
     if (xio == NULL)
@@ -571,7 +575,7 @@ int xio_socket_close(XIO_IMPL_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_compl
     return result;
 }
 
-int xio_socket_send(XIO_IMPL_HANDLE xio, const void* buffer, size_t size, ON_SEND_COMPLETE on_send_complete, void* callback_context)
+int xio_socket_send(CORD_HANDLE xio, const void* buffer, size_t size, ON_SEND_COMPLETE on_send_complete, void* callback_context)
 {
     int result;
     if (xio == NULL || buffer == NULL || size == 0)
@@ -623,7 +627,7 @@ int xio_socket_send(XIO_IMPL_HANDLE xio, const void* buffer, size_t size, ON_SEN
     return result;
 }
 
-void xio_socket_process_item(XIO_IMPL_HANDLE xio)
+void xio_socket_process_item(CORD_HANDLE xio)
 {
     if (xio != NULL)
     {
@@ -697,7 +701,7 @@ void xio_socket_process_item(XIO_IMPL_HANDLE xio)
     }
 }
 
-const char* xio_socket_query_uri(XIO_IMPL_HANDLE xio)
+const char* xio_socket_query_uri(CORD_HANDLE xio)
 {
     const char* result;
     if (xio == NULL)
@@ -713,7 +717,7 @@ const char* xio_socket_query_uri(XIO_IMPL_HANDLE xio)
     return result;
 }
 
-uint16_t xio_socket_query_port(XIO_IMPL_HANDLE xio)
+uint16_t xio_socket_query_port(CORD_HANDLE xio)
 {
     uint16_t result;
     if (xio == NULL)

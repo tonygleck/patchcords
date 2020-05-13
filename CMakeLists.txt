@@ -37,13 +37,13 @@ include_directories(${CMAKE_CURRENT_LIST_DIR}/inc)
 #these are the C source files
 set(source_c_files
     ./src/socket_debug_shim.c
-    ./src/xio_client.c
+    ./src/patchcord_client.c
 )
 
 #these are the C headers
 set(source_h_files
     ./inc/patchcords/socket_debug_shim.h
-    ./inc/patchcords/xio_client.h
+    ./inc/patchcords/patchcord_client.h
 )
 
 #this is the product (a library)
@@ -59,7 +59,7 @@ set(socket_lib)
 set(dependent_libs)
 if (WIN32)
     set(socket_c_files
-        ./src/xio_client_winsock.c
+        ./src/patchcord_client_winsock.c
     )
     set(socket_lib cord_winsock)
     set(dependent_libs ws2_32)

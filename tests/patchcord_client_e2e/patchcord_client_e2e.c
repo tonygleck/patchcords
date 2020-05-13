@@ -19,7 +19,7 @@
 #include "lib-util-c/thread_mgr.h"
 #include "lib-util-c/alarm_timer.h"
 
-#include "patchcords/xio_client.h"
+#include "patchcords/patchcord_client.h"
 #include "patchcords/cord_socket.h"
 
 static const char* TEST_HOSTNAME = "localhost";
@@ -52,7 +52,7 @@ typedef struct CLIENT_E2E_DATA_TAG
     size_t close_cnt;
     bool test_complete;
 
-    XIO_INSTANCE_HANDLE incoming;
+    PATCH_INSTANCE_HANDLE incoming;
     IO_ERROR_RESULT error_result;
     BYTE_BUFFER sent_data;
 
@@ -65,7 +65,7 @@ static void on_umock_c_error(UMOCK_C_ERROR_CODE error_code)
     CTEST_ASSERT_FAIL("umock_c reported error :%s", MU_ENUM_TO_STRING(UMOCK_C_ERROR_CODE, error_code));
 }
 
-CTEST_BEGIN_TEST_SUITE(xio_client_e2e)
+CTEST_BEGIN_TEST_SUITE(patchcord_client_e2e)
 
 CTEST_SUITE_INITIALIZE()
 {
@@ -100,14 +100,14 @@ CTEST_FUNCTION_CLEANUP()
 {
 }
 
-static XIO_INSTANCE_HANDLE create_io_ip_socket_objects(const SOCKETIO_CONFIG* config, const XIO_CLIENT_CALLBACK_INFO* client_cb)
+static PATCH_INSTANCE_HANDLE create_io_ip_socket_objects(const SOCKETIO_CONFIG* config, const PATCHCORD_CALLBACK_INFO* client_cb)
 {
-    XIO_INSTANCE_HANDLE result;
+    PATCH_INSTANCE_HANDLE result;
 
     const IO_INTERFACE_DESCRIPTION* io_interface_description = xio_cord_get_interface();
 
     // Create the listener
-    result = xio_client_create(io_interface_description, config, client_cb);
+    result = patchcord_client_create(io_interface_description, config, client_cb);
     CTEST_ASSERT_IS_NOT_NULL(result);
 
     return result;
@@ -146,7 +146,7 @@ static void on_socket_connect_cb(void* context, const SOCKETIO_CONFIG* config)
     CTEST_ASSERT_IS_NOT_NULL(e2e_data, "on_socket_connect_cb context NULL");
 
     log_debug("Creating the incoming socket which should be the listening socket");
-    XIO_CLIENT_CALLBACK_INFO client_cb;
+    PATCHCORD_CALLBACK_INFO client_cb;
     client_cb.on_bytes_received = on_socket_bytes_recv_cb;
     client_cb.on_io_error = on_socket_error_cb;
     client_cb.on_bytes_received_ctx = client_cb.on_io_error_ctx = e2e_data;
@@ -191,10 +191,10 @@ static void test_socket_sending(uint16_t port, uint32_t* send_data, uint32_t byt
     // arrange
     int result;
     CLIENT_E2E_DATA e2e_data = {0};
-    XIO_INSTANCE_HANDLE sender = NULL;
-    XIO_INSTANCE_HANDLE listener = NULL;
+    PATCH_INSTANCE_HANDLE sender = NULL;
+    PATCH_INSTANCE_HANDLE listener = NULL;
 
-    XIO_CLIENT_CALLBACK_INFO client_cb;
+    PATCHCORD_CALLBACK_INFO client_cb;
     client_cb.on_bytes_received = on_socket_bytes_recv_cb;
     client_cb.on_io_error = on_socket_error_cb;
     client_cb.on_bytes_received_ctx = client_cb.on_io_error_ctx = &e2e_data;
@@ -212,7 +212,7 @@ static void test_socket_sending(uint16_t port, uint32_t* send_data, uint32_t byt
     sender = create_io_ip_socket_objects(&config, &client_cb);
 
     // Create the socket
-    result = xio_client_listen(listener, on_socket_connect_cb, &e2e_data);
+    result = patchcord_client_listen(listener, on_socket_connect_cb, &e2e_data);
     CTEST_ASSERT_ARE_EQUAL(int, 0, result);
 
     result = alarm_timer_start(&e2e_data.timer, OPERATION_TIMEOUT_SEC);
@@ -224,7 +224,7 @@ static void test_socket_sending(uint16_t port, uint32_t* send_data, uint32_t byt
         {
             case CLIENT_STATE_CONN:
             {
-                result = xio_client_open(sender, on_socket_open_complete, &e2e_data);
+                result = patchcord_client_open(sender, on_socket_open_complete, &e2e_data);
                 CTEST_ASSERT_ARE_EQUAL(int, 0, result);
                 set_current_state(&e2e_data, CLIENT_STATE_CONNECTING);
                 break;
@@ -237,7 +237,7 @@ static void test_socket_sending(uint16_t port, uint32_t* send_data, uint32_t byt
                 break;
             case CLIENT_STATE_SENDING:
                 log_debug("Sending %d bytes of data", byte_len);
-                result = xio_client_send(sender, send_data, byte_len, on_socket_send_complete, &e2e_data);
+                result = patchcord_client_send(sender, send_data, byte_len, on_socket_send_complete, &e2e_data);
                 CTEST_ASSERT_ARE_EQUAL(int, 0, result);
                 set_current_state(&e2e_data, CLIENT_STATE_RECEIVING);
                 break;
@@ -259,11 +259,11 @@ static void test_socket_sending(uint16_t port, uint32_t* send_data, uint32_t byt
                 break;
             }
             case CLIENT_STATE_CLOSE:
-                result = xio_client_close(sender, on_socket_close_complete_cb, &e2e_data);
+                result = patchcord_client_close(sender, on_socket_close_complete_cb, &e2e_data);
                 CTEST_ASSERT_ARE_EQUAL(int, 0, result);
-                result = xio_client_close(e2e_data.incoming, on_socket_close_complete_cb, &e2e_data);
+                result = patchcord_client_close(e2e_data.incoming, on_socket_close_complete_cb, &e2e_data);
                 CTEST_ASSERT_ARE_EQUAL(int, 0, result);
-                result = xio_client_close(listener, on_socket_close_complete_cb, &e2e_data);
+                result = patchcord_client_close(listener, on_socket_close_complete_cb, &e2e_data);
                 CTEST_ASSERT_ARE_EQUAL(int, 0, result);
                 set_current_state(&e2e_data, CLIENT_STATE_CLOSING);
                 break;
@@ -280,10 +280,10 @@ static void test_socket_sending(uint16_t port, uint32_t* send_data, uint32_t byt
         }
         if (e2e_data.incoming != NULL)
         {
-            xio_client_process_item(e2e_data.incoming);
+            patchcord_client_process_item(e2e_data.incoming);
         }
-        xio_client_process_item(listener);
-        xio_client_process_item(sender);
+        patchcord_client_process_item(listener);
+        patchcord_client_process_item(sender);
 
         if (alarm_timer_is_expired(&e2e_data.timer))
         {
@@ -292,9 +292,9 @@ static void test_socket_sending(uint16_t port, uint32_t* send_data, uint32_t byt
     } while (!e2e_data.test_complete);
 
     // Cleanup
-    xio_client_destroy(e2e_data.incoming);
-    xio_client_destroy(sender);
-    xio_client_destroy(listener);
+    patchcord_client_destroy(e2e_data.incoming);
+    patchcord_client_destroy(sender);
+    patchcord_client_destroy(listener);
 }
 
 CTEST_FUNCTION(xio_socket_send_32_byte_data_succeed)
@@ -309,5 +309,5 @@ CTEST_FUNCTION(xio_socket_send_128_byte_data_succeed)
     test_socket_sending(port_value, TEST_128_BYTES_SEND, SEND_BYTE_SIZE_128);
 }
 
-CTEST_END_TEST_SUITE(xio_client_e2e)
+CTEST_END_TEST_SUITE(patchcord_client_e2e)
 

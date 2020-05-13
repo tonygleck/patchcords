@@ -6,7 +6,8 @@ function(addCompileSettings theTarget)
         target_compile_definitions(${theTarget} PRIVATE -D_CRT_SECURE_NO_WARNINGS)
         # Make warning as error
     else()
-        target_compile_options(${theTarget} PRIVATE -Wall -Werror -Wextra -Wshadow)
+        target_compile_options(${theTarget} PRIVATE -Wall -Werror -Wextra -Wshadow -fPIC
+        -Wno-unused-function -Wno-missing-braces -Wno-strict-aliasing)
         if (${DEBUG_CONFIG})
             target_compile_options(${theTarget} PRIVATE -O0)
         else()

@@ -5,17 +5,17 @@
 
 #include "lib-util-c/sys_debug_shim.h"
 #include "lib-util-c/app_logging.h"
-#include "patchcords/xio_client.h"
+#include "patchcords/patchcord_client.h"
 
-typedef struct XIO_INSTANCE_TAG
+typedef struct PATCH_INSTANCE_TAG
 {
     const IO_INTERFACE_DESCRIPTION* io_interface_description;
-    XIO_IMPL_HANDLE concrete_xio_handle;
-} XIO_INSTANCE;
+    CORD_HANDLE concrete_xio_handle;
+} PATCH_INSTANCE;
 
-XIO_INSTANCE_HANDLE xio_client_create(const IO_INTERFACE_DESCRIPTION* io_interface_description, const void* parameters, const XIO_CLIENT_CALLBACK_INFO* client_cb)
+PATCH_INSTANCE_HANDLE patchcord_client_create(const IO_INTERFACE_DESCRIPTION* io_interface_description, const void* parameters, const PATCHCORD_CALLBACK_INFO* client_cb)
 {
-    XIO_INSTANCE* result;
+    PATCH_INSTANCE* result;
     if ((io_interface_description == NULL) ||
         (io_interface_description->interface_impl_create == NULL) ||
         (io_interface_description->interface_impl_destroy == NULL) ||
@@ -37,7 +37,7 @@ XIO_INSTANCE_HANDLE xio_client_create(const IO_INTERFACE_DESCRIPTION* io_interfa
     else
     {
         /* Codes_SRS_XIO_01_017: [If allocating the memory needed for the IO interface fails then xio_create shall return NULL.] */
-        if ((result = (XIO_INSTANCE*)malloc(sizeof(XIO_INSTANCE))) != NULL)
+        if ((result = (PATCH_INSTANCE*)malloc(sizeof(PATCH_INSTANCE))) != NULL)
         {
             result->io_interface_description = io_interface_description;
             if ((result->concrete_xio_handle  = result->io_interface_description->interface_impl_create(parameters, client_cb->on_bytes_received, client_cb->on_bytes_received_ctx, client_cb->on_io_error, client_cb->on_io_error_ctx)) == NULL)
@@ -52,20 +52,20 @@ XIO_INSTANCE_HANDLE xio_client_create(const IO_INTERFACE_DESCRIPTION* io_interfa
             log_error("Failure allocating io instance");
         }
     }
-    return (XIO_INSTANCE_HANDLE)result;
+    return (PATCH_INSTANCE_HANDLE)result;
 }
 
-void xio_client_destroy(XIO_INSTANCE_HANDLE xio)
+void patchcord_client_destroy(PATCH_INSTANCE_HANDLE xio)
 {
     if (xio != NULL)
     {
-        XIO_INSTANCE* xio_instance = (XIO_INSTANCE*)xio;
+        PATCH_INSTANCE* xio_instance = (PATCH_INSTANCE*)xio;
         xio_instance->io_interface_description->interface_impl_destroy(xio_instance->concrete_xio_handle);
         free(xio_instance);
     }
 }
 
-int xio_client_open(XIO_INSTANCE_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_context)
+int patchcord_client_open(PATCH_INSTANCE_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_context)
 {
     int result;
     if (xio == NULL)
@@ -75,13 +75,13 @@ int xio_client_open(XIO_INSTANCE_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_comp
     }
     else
     {
-        XIO_INSTANCE* xio_instance = (XIO_INSTANCE*)xio;
+        PATCH_INSTANCE* xio_instance = (PATCH_INSTANCE*)xio;
         result = xio_instance->io_interface_description->interface_impl_open(xio_instance->concrete_xio_handle, on_io_open_complete, on_io_open_complete_context);
     }
     return result;
 }
 
-int xio_client_listen(XIO_INSTANCE_HANDLE xio, ON_INCOMING_CONNECT incoming_conn, void* user_ctx)
+int patchcord_client_listen(PATCH_INSTANCE_HANDLE xio, ON_INCOMING_CONNECT incoming_conn, void* user_ctx)
 {
     int result;
     if (xio == NULL)
@@ -91,7 +91,7 @@ int xio_client_listen(XIO_INSTANCE_HANDLE xio, ON_INCOMING_CONNECT incoming_conn
     }
     else
     {
-        XIO_INSTANCE* xio_instance = (XIO_INSTANCE*)xio;
+        PATCH_INSTANCE* xio_instance = (PATCH_INSTANCE*)xio;
         if (xio_instance->io_interface_description->interface_impl_listen == NULL)
         {
             log_error("Failure listening function not implemented");
@@ -105,7 +105,7 @@ int xio_client_listen(XIO_INSTANCE_HANDLE xio, ON_INCOMING_CONNECT incoming_conn
     return result;
 }
 
-int xio_client_close(XIO_INSTANCE_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_complete, void* callback_context)
+int patchcord_client_close(PATCH_INSTANCE_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_complete, void* callback_context)
 {
     int result;
     if (xio == NULL)
@@ -115,13 +115,13 @@ int xio_client_close(XIO_INSTANCE_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_c
     }
     else
     {
-        XIO_INSTANCE* xio_instance = (XIO_INSTANCE*)xio;
+        PATCH_INSTANCE* xio_instance = (PATCH_INSTANCE*)xio;
         result = xio_instance->io_interface_description->interface_impl_close(xio_instance->concrete_xio_handle, on_io_close_complete, callback_context);
     }
     return result;
 }
 
-int xio_client_send(XIO_INSTANCE_HANDLE xio, const void* buffer, size_t size, ON_SEND_COMPLETE on_send_complete, void* callback_context)
+int patchcord_client_send(PATCH_INSTANCE_HANDLE xio, const void* buffer, size_t size, ON_SEND_COMPLETE on_send_complete, void* callback_context)
 {
     int result;
     if (xio == NULL)
@@ -131,22 +131,22 @@ int xio_client_send(XIO_INSTANCE_HANDLE xio, const void* buffer, size_t size, ON
     }
     else
     {
-        XIO_INSTANCE* xio_instance = (XIO_INSTANCE*)xio;
+        PATCH_INSTANCE* xio_instance = (PATCH_INSTANCE*)xio;
         result = xio_instance->io_interface_description->interface_impl_send(xio_instance->concrete_xio_handle, buffer, size, on_send_complete, callback_context);
     }
     return result;
 }
 
-void xio_client_process_item(XIO_INSTANCE_HANDLE xio)
+void patchcord_client_process_item(PATCH_INSTANCE_HANDLE xio)
 {
     if (xio != NULL)
     {
-        XIO_INSTANCE* xio_instance = (XIO_INSTANCE*)xio;
+        PATCH_INSTANCE* xio_instance = (PATCH_INSTANCE*)xio;
         xio_instance->io_interface_description->interface_impl_process_item(xio_instance->concrete_xio_handle);
     }
 }
 
-const char* xio_client_query_endpoint(XIO_INSTANCE_HANDLE xio, uint16_t* port)
+const char* patchcord_client_query_endpoint(PATCH_INSTANCE_HANDLE xio, uint16_t* port)
 {
     const char* result;
     if (xio == NULL)
@@ -156,7 +156,7 @@ const char* xio_client_query_endpoint(XIO_INSTANCE_HANDLE xio, uint16_t* port)
     }
     else
     {
-        XIO_INSTANCE* xio_instance = (XIO_INSTANCE*)xio;
+        PATCH_INSTANCE* xio_instance = (PATCH_INSTANCE*)xio;
 
         if (port != NULL)
         {

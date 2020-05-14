@@ -730,6 +730,8 @@ int xio_socket_send(CORD_HANDLE xio, const void* buffer, size_t size, ON_SEND_CO
                 if (item_list_add_item(socket_impl->pending_list, send_item) != 0)
                 {
                     log_error("Failure adding item to list");
+                    free(send_item->cache_data);
+                    free(send_item);
                     result = __LINE__;
                 }
                 else

@@ -289,6 +289,7 @@ static void test_socket_sending(uint16_t port, uint32_t* send_data, uint32_t byt
         {
             CTEST_ASSERT_FAIL("Failure socket has timed out on operation %d", (int)e2e_data.client_state);
         }
+        thread_mgr_sleep(5);
     } while (!e2e_data.test_complete);
 
     // Cleanup
@@ -307,6 +308,12 @@ CTEST_FUNCTION(xio_socket_send_128_byte_data_succeed)
 {
     static uint16_t port_value = 8441;
     test_socket_sending(port_value, TEST_128_BYTES_SEND, SEND_BYTE_SIZE_128);
+}
+
+CTEST_FUNCTION(xio_socket_send_1024_byte_data_succeed)
+{
+    static uint16_t port_value = 8442;
+    test_socket_sending(port_value, TEST_1024_BYTES_SEND, SEND_BYTE_SIZE_1024);
 }
 
 CTEST_END_TEST_SUITE(patchcord_client_e2e)

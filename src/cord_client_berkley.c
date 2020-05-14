@@ -404,16 +404,6 @@ static SOCKET_SEND_RESULT send_socket_data(SOCKET_INSTANCE* socket_impl, PENDING
                     log_error("Failure moving data to storage");
                     result = SEND_RESULT_ERROR;
                 }
-                else if (item_list_add_item(socket_impl->pending_list, pending_item) != 0)
-                {
-                    indicate_error(socket_impl, IO_ERROR_MEMORY);
-                    if (pending_item->on_send_complete != NULL)
-                    {
-                        pending_item->on_send_complete(pending_item->send_ctx, IO_SEND_ERROR);
-                    }
-                    log_error("Failure allocating malloc");
-                    result = SEND_RESULT_ERROR;
-                }
                 else
                 {
                     result = SEND_RESULT_WAIT;
@@ -440,17 +430,6 @@ static SOCKET_SEND_RESULT send_socket_data(SOCKET_INSTANCE* socket_impl, PENDING
                     pending_item->on_send_complete(pending_item->send_ctx, IO_SEND_ERROR);
                 }
                 log_error("Failure moving data to storage");
-                result = SEND_RESULT_ERROR;
-            }
-            else if (item_list_add_item(socket_impl->pending_list, pending_item) != 0)
-            {
-                indicate_error(socket_impl, IO_ERROR_MEMORY);
-                if (pending_item->on_send_complete != NULL)
-                {
-                    pending_item->on_send_complete(pending_item->send_ctx, IO_SEND_ERROR);
-                }
-                free(pending_item->cache_data);
-                log_error("Failure allocating malloc");
                 result = SEND_RESULT_ERROR;
             }
             else
@@ -718,12 +697,12 @@ int xio_socket_send(CORD_HANDLE xio, const void* buffer, size_t size, ON_SEND_CO
         if (socket_impl->current_state != IO_STATE_OPEN)
         {
             log_error("Failure sending in incorrect state");
-            result = MU_FAILURE;
+            result = __LINE__;
         }
         else if ((send_item = (PENDING_SEND_ITEM*)malloc(sizeof(PENDING_SEND_ITEM))) == NULL)
         {
             log_error("Failure allocating malloc");
-            result = MU_FAILURE;
+            result = __LINE__;
         }
         else
         {
@@ -738,7 +717,7 @@ int xio_socket_send(CORD_HANDLE xio, const void* buffer, size_t size, ON_SEND_CO
             {
                 log_error("Failure attempting to send socket data");
                 free(send_item);
-                result = MU_FAILURE;
+                result = __LINE__;
             }
             else if (send_res == SEND_RESULT_SUCCESS)
             {
@@ -748,7 +727,15 @@ int xio_socket_send(CORD_HANDLE xio, const void* buffer, size_t size, ON_SEND_CO
             else
             {
                 // Partial send, don't free wait for the dowork
-                result = 0;
+                if (item_list_add_item(socket_impl->pending_list, send_item) != 0)
+                {
+                    log_error("Failure adding item to list");
+                    result = __LINE__;
+                }
+                else
+                {
+                    result = 0;
+                }
             }
         }
     }

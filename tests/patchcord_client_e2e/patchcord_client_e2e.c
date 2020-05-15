@@ -20,7 +20,7 @@
 #include "lib-util-c/alarm_timer.h"
 
 #include "patchcords/patchcord_client.h"
-#include "patchcords/cord_socket.h"
+#include "patchcords/cord_client.h"
 
 static const char* TEST_HOSTNAME = "localhost";
 static uint32_t TEST_32_BYTES_SEND[32];
@@ -298,19 +298,19 @@ static void test_socket_sending(uint16_t port, uint32_t* send_data, uint32_t byt
     patchcord_client_destroy(listener);
 }
 
-CTEST_FUNCTION(xio_socket_send_32_byte_data_succeed)
+CTEST_FUNCTION(cord_client_send_32_byte_data_succeed)
 {
     static uint16_t port_value = 8440;
     test_socket_sending(port_value, TEST_32_BYTES_SEND, SEND_BYTE_SIZE_32);
 }
 
-CTEST_FUNCTION(xio_socket_send_128_byte_data_succeed)
+CTEST_FUNCTION(cord_client_send_128_byte_data_succeed)
 {
     static uint16_t port_value = 8441;
     test_socket_sending(port_value, TEST_128_BYTES_SEND, SEND_BYTE_SIZE_128);
 }
 
-CTEST_FUNCTION(xio_socket_send_1024_byte_data_succeed)
+CTEST_FUNCTION(cord_client_send_1024_byte_data_succeed)
 {
     static uint16_t port_value = 8442;
     test_socket_sending(port_value, TEST_1024_BYTES_SEND, SEND_BYTE_SIZE_1024);

@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 #include "patchcords/patchcord_client.h"
-#include "patchcords/cord_socket.h"
+#include "patchcords/cord_client.h"
 
 typedef struct SAMPLE_DATA_TAG
 {

@@ -26,7 +26,7 @@
 
 #include "patchcords/patchcord_client.h"
 #include "patchcords/socket_debug_shim.h"
-#include "patchcords/cord_socket.h"
+#include "patchcords/cord_client.h"
 
 #include <sys/ioctl.h>
 #include <sys/types.h>
@@ -522,7 +522,7 @@ static SOCKET_INSTANCE* create_socket_info(const SOCKETIO_CONFIG* config)
     return result;
 }
 
-CORD_HANDLE xio_socket_create(const void* parameters, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_context, ON_IO_ERROR on_io_error, void* on_io_error_context)
+CORD_HANDLE cord_client_create(const void* parameters, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_context, ON_IO_ERROR on_io_error, void* on_io_error_context)
 {
     SOCKET_INSTANCE* result;
     if (parameters == NULL)
@@ -545,7 +545,7 @@ CORD_HANDLE xio_socket_create(const void* parameters, ON_BYTES_RECEIVED on_bytes
     return (CORD_HANDLE)result;
 }
 
-void xio_socket_destroy(CORD_HANDLE xio)
+void cord_client_destroy(CORD_HANDLE xio)
 {
     if (xio != NULL)
     {
@@ -560,7 +560,7 @@ void xio_socket_destroy(CORD_HANDLE xio)
     }
 }
 
-int xio_socket_open(CORD_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_context)
+int cord_client_open(CORD_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_context)
 {
     int result;
     if (xio == NULL)
@@ -592,7 +592,7 @@ int xio_socket_open(CORD_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, vo
     return result;
 }
 
-int xio_socket_listen(CORD_HANDLE xio, ON_INCOMING_CONNECT incoming_conn_cb, void* user_ctx)
+int cord_client_listen(CORD_HANDLE xio, ON_INCOMING_CONNECT incoming_conn_cb, void* user_ctx)
 {
     uint16_t result;
     if (xio == NULL || incoming_conn_cb == NULL)
@@ -654,7 +654,7 @@ int xio_socket_listen(CORD_HANDLE xio, ON_INCOMING_CONNECT incoming_conn_cb, voi
     return result;
 }
 
-int xio_socket_close(CORD_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_complete, void* ctx)
+int cord_client_close(CORD_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_complete, void* ctx)
 {
     int result;
     if (xio == NULL)
@@ -681,7 +681,7 @@ int xio_socket_close(CORD_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_complete,
     return result;
 }
 
-int xio_socket_send(CORD_HANDLE xio, const void* buffer, size_t size, ON_SEND_COMPLETE on_send_complete, void* callback_context)
+int cord_client_send(CORD_HANDLE xio, const void* buffer, size_t size, ON_SEND_COMPLETE on_send_complete, void* callback_context)
 {
     int result;
     if (xio == NULL || buffer == NULL || size == 0)
@@ -744,7 +744,7 @@ int xio_socket_send(CORD_HANDLE xio, const void* buffer, size_t size, ON_SEND_CO
     return result;
 }
 
-void xio_socket_process_item(CORD_HANDLE xio)
+void cord_client_process_item(CORD_HANDLE xio)
 {
     if (xio != NULL)
     {
@@ -817,7 +817,7 @@ void xio_socket_process_item(CORD_HANDLE xio)
     }
 }
 
-const char* xio_socket_query_uri(CORD_HANDLE xio)
+const char* cord_client_query_uri(CORD_HANDLE xio)
 {
     const char* result;
     if (xio == NULL)
@@ -833,7 +833,7 @@ const char* xio_socket_query_uri(CORD_HANDLE xio)
     return result;
 }
 
-uint16_t xio_socket_query_port(CORD_HANDLE xio)
+uint16_t cord_client_query_port(CORD_HANDLE xio)
 {
     uint16_t result;
     if (xio == NULL)
@@ -851,15 +851,15 @@ uint16_t xio_socket_query_port(CORD_HANDLE xio)
 
 static const IO_INTERFACE_DESCRIPTION socket_io_interface =
 {
-    xio_socket_create,
-    xio_socket_destroy,
-    xio_socket_open,
-    xio_socket_close,
-    xio_socket_send,
-    xio_socket_process_item,
-    xio_socket_query_uri,
-    xio_socket_query_port,
-    xio_socket_listen
+    cord_client_create,
+    cord_client_destroy,
+    cord_client_open,
+    cord_client_close,
+    cord_client_send,
+    cord_client_process_item,
+    cord_client_query_uri,
+    cord_client_query_port,
+    cord_client_listen
 };
 
 const IO_INTERFACE_DESCRIPTION* xio_cord_get_interface(void)

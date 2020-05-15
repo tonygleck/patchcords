@@ -53,7 +53,7 @@ compileTargetAsC99(patchcords)
 
 # Berkley socket library
 set(socket_h_files
-    ./inc/patchcords/cord_socket.h
+    ./inc/patchcords/cord_client.h
 )
 set(socket_lib)
 set(dependent_libs)

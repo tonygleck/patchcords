@@ -7,7 +7,7 @@
 #include "lib-util-c/sys_debug_shim.h"
 #include "lib-util-c/app_logging.h"
 #include "patchcords/patchcord_client.h"
-#include "patchcords/cord_socket.h"
+#include "patchcords/cord_client.h"
 
 typedef enum SOCKET_STATE_TAG
 {
@@ -63,7 +63,7 @@ int open_socket(SOCKET_INSTANCE* socket_impl)
 
 }
 
-CORD_HANDLE xio_socket_create(const void* parameters)
+CORD_HANDLE cord_client_create(const void* parameters)
 {
     SOCKET_INSTANCE* result;
     if (parameters == NULL)
@@ -93,7 +93,7 @@ CORD_HANDLE xio_socket_create(const void* parameters)
     return (CORD_HANDLE)result;
 }
 
-void xio_socket_destroy(CORD_HANDLE xio)
+void cord_client_destroy(CORD_HANDLE xio)
 {
     if (xio != NULL)
     {
@@ -103,7 +103,7 @@ void xio_socket_destroy(CORD_HANDLE xio)
     }
 }
 
-int xio_socket_open(CORD_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_context, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_context, ON_IO_ERROR on_io_error, void* on_io_error_context)
+int cord_client_open(CORD_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_context, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_context, ON_IO_ERROR on_io_error, void* on_io_error_context)
 {
     int result;
     if (xio == NULL)
@@ -134,7 +134,7 @@ int xio_socket_open(CORD_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, vo
     return result;
 }
 
-int xio_socket_close(CORD_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_complete, void* callback_context)
+int cord_client_close(CORD_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_complete, void* callback_context)
 {
     int result;
     if (xio == NULL)
@@ -149,7 +149,7 @@ int xio_socket_close(CORD_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_complete,
     return result;
 }
 
-int xio_socket_send(CORD_HANDLE xio, const void* buffer, size_t size, ON_SEND_COMPLETE on_send_complete, void* callback_context)
+int cord_client_send(CORD_HANDLE xio, const void* buffer, size_t size, ON_SEND_COMPLETE on_send_complete, void* callback_context)
 {
     int result;
     if (xio == NULL)
@@ -163,7 +163,7 @@ int xio_socket_send(CORD_HANDLE xio, const void* buffer, size_t size, ON_SEND_CO
     return result;
 }
 
-void xio_socket_dowork(CORD_HANDLE xio)
+void cord_client_dowork(CORD_HANDLE xio)
 {
     if (xio != NULL)
     {
@@ -190,12 +190,12 @@ void xio_socket_dowork(CORD_HANDLE xio)
 
 static const IO_INTERFACE_DESCRIPTION socket_io_interface =
 {
-    xio_socket_create,
-    xio_socket_destroy,
-    xio_socket_open,
-    xio_socket_close,
-    xio_socket_send,
-    xio_socket_dowork,
+    cord_client_create,
+    cord_client_destroy,
+    cord_client_open,
+    cord_client_close,
+    cord_client_send,
+    cord_client_dowork,
 };
 
 const IO_INTERFACE_DESCRIPTION* xio_cord_get_interface(void)

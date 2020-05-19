@@ -83,7 +83,7 @@ MOCKABLE_FUNCTION(, int, socket_shim_bind, int, __fd, __CONST_SOCKADDR_ARG, __ad
 #endif
 
 #ifdef WIN32
-MOCKABLE_FUNCTION(, int, socket_shim_listen, int, __fd, int, __n);
+MOCKABLE_FUNCTION(, int, socket_shim_listen, SOCKET, __fd, int, __n);
 #else
 MOCKABLE_FUNCTION(, int, socket_shim_listen, int, __fd, int, __n);
 #endif
@@ -97,6 +97,7 @@ MOCKABLE_FUNCTION(, int, socket_shim_accept, int, __fd, __SOCKADDR_ARG, __addr, 
 #ifdef WIN32
 MOCKABLE_FUNCTION(, int, socket_shim_ioctlsocket, SOCKET, s, long, cmd, u_long*, argp)
 MOCKABLE_FUNCTION(, int, socket_shim_wsastartup, WORD, wVersionRequested, LPWSADATA, lpWSAData);
+MOCKABLE_FUNCTION(, int, socket_shim_wsacleanup);
 MOCKABLE_FUNCTION(, int, socket_shim_wsagetlasterror);
 MOCKABLE_FUNCTION(, u_short, socket_shim_htons, u_short, hostshort);
 #endif
@@ -126,6 +127,7 @@ MOCKABLE_FUNCTION(, void, socket_shim_reset);
 #define closesocket socket_shim_close
 #define ioctlsocket socket_shim_ioctlsocket
 #define WSAStartup socket_shim_wsastartup
+#define WSACleanup socket_shim_wsacleanup
 #define WSAGetLastError socket_shim_wsagetlasterror
 #define htons socket_shim_htons
 #else

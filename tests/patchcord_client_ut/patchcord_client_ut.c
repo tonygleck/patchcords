@@ -554,7 +554,6 @@ CTEST_FUNCTION(patchcord_client_listen_success)
 {
     // arrange
     int parameters = 10;
-    uint16_t port;
     PATCHCORD_CALLBACK_INFO client_callbacks = { 0 };
     client_callbacks.on_bytes_received = test_on_bytes_received;
     client_callbacks.on_io_error = test_on_io_error;

@@ -290,7 +290,7 @@ static SOCKET_SEND_RESULT send_socket_data(SOCKET_INSTANCE* socket_impl, PENDING
     SOCKET_SEND_RESULT result;
 
     // Send the current item
-    int send_res = send(socket_impl->socket, pending_item->send_data, pending_item->data_len, 0);
+    int send_res = send(socket_impl->socket, pending_item->send_data, (int)pending_item->data_len, 0);
     if (send_res  != (int)pending_item->data_len)
     {
         int last_sock_error = WSAGetLastError();
@@ -675,8 +675,8 @@ void cord_client_process_item(CORD_HANDLE xio)
             struct sockaddr_in cli_addr;
             socklen_t client_len = sizeof(cli_addr);
             // Accept actual connection from the client
-            int accepted_socket = accept(socket_impl->socket, (struct sockaddr *)&cli_addr, &client_len);
-            if (accepted_socket != -1)
+            SOCKET accepted_socket = accept(socket_impl->socket, (struct sockaddr *)&cli_addr, &client_len);
+            if (accepted_socket != SOCKET_ERROR)
             {
                 u_long mode = 1;
                 if (ioctlsocket(socket_impl->socket, FIONBIO, &mode) != 0)

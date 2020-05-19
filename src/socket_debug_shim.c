@@ -213,7 +213,7 @@ int socket_shim_bind(int __fd, __CONST_SOCKADDR_ARG __addr, socklen_t __len)
 }
 
 #ifdef WIN32
-int socket_shim_listen(int __fd, int __n)
+int socket_shim_listen(SOCKET __fd, int __n)
 #else
 int socket_shim_listen(int __fd, int __n)
 #endif

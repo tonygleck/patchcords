@@ -128,7 +128,7 @@ extern "C" {
         return result;
     }
 
-    static int my_socket_shim_socket(int domain, int type, int protocol)
+    static SOCKET my_socket_shim_socket(int domain, int type, int protocol)
     {
         g_socket = my_mem_shim_malloc(1);
         return (int)__LINE__;
@@ -304,7 +304,7 @@ static void on_umock_c_error(UMOCK_C_ERROR_CODE error_code)
     CTEST_ASSERT_FAIL("umock_c reported error :%s", MU_ENUM_TO_STRING(UMOCK_C_ERROR_CODE, error_code));
 }
 
-CTEST_BEGIN_TEST_SUITE(patchcord_client_winsock_ut)
+CTEST_BEGIN_TEST_SUITE(cord_client_winsock_ut)
 
 CTEST_SUITE_INITIALIZE()
 {
@@ -412,7 +412,7 @@ CTEST_FUNCTION(cord_client_create_succeed)
     setup_cord_client_create_mocks();
 
     // act
-    CORD_HANDLE handle = cord_client_create(&config);
+    CORD_HANDLE handle = cord_client_create(&config, test_on_bytes_recv, NULL, test_on_error, NULL);
 
     // assert
     CTEST_ASSERT_IS_NOT_NULL(handle);
@@ -447,7 +447,7 @@ CTEST_FUNCTION(cord_client_create_fail)
             umock_c_negative_tests_fail_call(index);
 
             // act
-            CORD_HANDLE handle = cord_client_create(&config);
+            CORD_HANDLE handle = cord_client_create(&config, test_on_bytes_recv, NULL, test_on_error, NULL);
 
             // assert
             CTEST_ASSERT_IS_NULL(handle, "cord_client_create failure %zu/%zu", index, count);
@@ -462,7 +462,7 @@ CTEST_FUNCTION(cord_client_create_config_NULL_fail)
     // arrange
 
     // act
-    CORD_HANDLE handle = cord_client_create(NULL);
+    CORD_HANDLE handle = cord_client_create(NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
 
     // assert
     CTEST_ASSERT_IS_NULL(handle);
@@ -491,7 +491,7 @@ CTEST_FUNCTION(cord_client_destroy_succeed)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    CORD_HANDLE handle = cord_client_create(&config);
+    CORD_HANDLE handle = cord_client_create(&config, test_on_bytes_recv, NULL, test_on_error, NULL);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(free(IGNORED_ARG));
@@ -512,7 +512,7 @@ CTEST_FUNCTION(cord_client_open_xio_NULL_fail)
     // arrange
 
     // act
-    int result = cord_client_open(NULL, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
+    int result = cord_client_open(NULL, test_on_open_complete, NULL);
 
     // assert
     CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
@@ -528,13 +528,13 @@ CTEST_FUNCTION(cord_client_open_fail)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    CORD_HANDLE handle = cord_client_create(&config);
+    CORD_HANDLE handle = cord_client_create(&config, test_on_bytes_recv, NULL, test_on_error, NULL);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(socket(AF_INET, SOCK_STREAM, 0)).SetReturn(-1);
 
     // act
-    int result = cord_client_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
+    int result = cord_client_open(handle, test_on_open_complete, NULL);
 
     // assert
     CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
@@ -551,14 +551,14 @@ CTEST_FUNCTION(cord_client_open_succeed)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    CORD_HANDLE handle = cord_client_create(&config);
+    CORD_HANDLE handle = cord_client_create(&config, test_on_bytes_recv, NULL, test_on_error, NULL);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(socket(AF_INET, SOCK_STREAM, 0));
     setup_cord_client_process_item_open_mocks();
 
     // act
-    int result = cord_client_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
+    int result = cord_client_open(handle, test_on_open_complete, NULL);
     cord_client_process_item(handle);
 
     // assert
@@ -577,13 +577,13 @@ CTEST_FUNCTION(cord_client_open_UDP_succeed)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_UDP;
-    CORD_HANDLE handle = cord_client_create(&config);
+    CORD_HANDLE handle = cord_client_create(&config, test_on_bytes_recv, NULL, test_on_error, NULL);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP));
 
     // act
-    int result = cord_client_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
+    int result = cord_client_open(handle, test_on_open_complete, NULL);
 
     // assert
     CTEST_ASSERT_ARE_EQUAL(int, 0, result);
@@ -601,12 +601,12 @@ CTEST_FUNCTION(cord_client_open_call_when_open_fail)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    CORD_HANDLE handle = cord_client_create(&config);
-    int result = cord_client_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
+    CORD_HANDLE handle = cord_client_create(&config, test_on_bytes_recv, NULL, test_on_error, NULL);
+    int result = cord_client_open(handle, test_on_open_complete, NULL);
     umock_c_reset_all_calls();
 
     // act
-    result = cord_client_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
+    result = cord_client_open(handle, test_on_open_complete, NULL);
 
     // assert
     CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
@@ -638,7 +638,7 @@ CTEST_FUNCTION(cord_client_close_not_open_fail)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    CORD_HANDLE handle = cord_client_create(&config);
+    CORD_HANDLE handle = cord_client_create(&config, test_on_bytes_recv, NULL, test_on_error, NULL);
     umock_c_reset_all_calls();
 
     // act
@@ -660,8 +660,8 @@ CTEST_FUNCTION(cord_client_close_success)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    CORD_HANDLE handle = cord_client_create(&config);
-    (void)cord_client_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
+    CORD_HANDLE handle = cord_client_create(&config, test_on_bytes_recv, NULL, test_on_error, NULL);
+    (void)cord_client_open(handle, test_on_open_complete, NULL);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(shutdown(IGNORED_ARG, SD_BOTH));
@@ -701,7 +701,7 @@ CTEST_FUNCTION(cord_client_send_not_open_fail)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    CORD_HANDLE handle = cord_client_create(&config);
+    CORD_HANDLE handle = cord_client_create(&config, test_on_bytes_recv, NULL, test_on_error, NULL);
     umock_c_reset_all_calls();
 
     // act
@@ -722,8 +722,8 @@ CTEST_FUNCTION(cord_client_send_success)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    CORD_HANDLE handle = cord_client_create(&config);
-    (void)cord_client_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
+    CORD_HANDLE handle = cord_client_create(&config, test_on_bytes_recv, NULL, test_on_error, NULL);
+    (void)cord_client_open(handle, test_on_open_complete, NULL);
     cord_client_process_item(handle);
     umock_c_reset_all_calls();
 
@@ -752,13 +752,13 @@ CTEST_FUNCTION(cord_client_send_no_callback_success)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    CORD_HANDLE handle = cord_client_create(&config);
-    (void)cord_client_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
+    CORD_HANDLE handle = cord_client_create(&config, test_on_bytes_recv, NULL, test_on_error, NULL);
+    (void)cord_client_open(handle, test_on_open_complete, NULL);
     cord_client_process_item(handle);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
-    STRICT_EXPECTED_CALL(send(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG)).SetReturn(g_buffer_len);
+    STRICT_EXPECTED_CALL(send(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG)).SetReturn((int)g_buffer_len);
     STRICT_EXPECTED_CALL(free(IGNORED_ARG));
 
     // act
@@ -782,8 +782,8 @@ CTEST_FUNCTION(cord_client_send_partial_send_success)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    CORD_HANDLE handle = cord_client_create(&config);
-    (void)cord_client_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
+    CORD_HANDLE handle = cord_client_create(&config, test_on_bytes_recv, NULL, test_on_error, NULL);
+    (void)cord_client_open(handle, test_on_open_complete, NULL);
     cord_client_process_item(handle);
     umock_c_reset_all_calls();
 
@@ -825,8 +825,8 @@ CTEST_FUNCTION(cord_client_process_item_open_success)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    CORD_HANDLE handle = cord_client_create(&config);
-    (void)cord_client_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
+    CORD_HANDLE handle = cord_client_create(&config, test_on_bytes_recv, NULL, test_on_error, NULL);
+    (void)cord_client_open(handle, test_on_open_complete, NULL);
     umock_c_reset_all_calls();
 
     setup_cord_client_process_item_open_mocks();
@@ -850,8 +850,8 @@ CTEST_FUNCTION(cord_client_process_item_getaddrinfo_fail)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    CORD_HANDLE handle = cord_client_create(&config);
-    (void)cord_client_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
+    CORD_HANDLE handle = cord_client_create(&config, test_on_bytes_recv, NULL, test_on_error, NULL);
+    (void)cord_client_open(handle, test_on_open_complete, NULL);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(getaddrinfo(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG)).SetReturn(__LINE__);
@@ -876,8 +876,8 @@ CTEST_FUNCTION(cord_client_process_item_connect_fail)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    CORD_HANDLE handle = cord_client_create(&config);
-    (void)cord_client_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
+    CORD_HANDLE handle = cord_client_create(&config, test_on_bytes_recv, NULL, test_on_error, NULL);
+    (void)cord_client_open(handle, test_on_open_complete, NULL);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(getaddrinfo(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG));
@@ -905,8 +905,8 @@ CTEST_FUNCTION(cord_client_process_item_success)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    CORD_HANDLE handle = cord_client_create(&config);
-    (void)cord_client_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
+    CORD_HANDLE handle = cord_client_create(&config, test_on_bytes_recv, NULL, test_on_error, NULL);
+    (void)cord_client_open(handle, test_on_open_complete, NULL);
     cord_client_process_item(handle);
     umock_c_reset_all_calls();
 
@@ -932,8 +932,8 @@ CTEST_FUNCTION(cord_client_process_item_recv_success)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    CORD_HANDLE handle = cord_client_create(&config);
-    (void)cord_client_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
+    CORD_HANDLE handle = cord_client_create(&config, test_on_bytes_recv, NULL, test_on_error, NULL);
+    (void)cord_client_open(handle, test_on_open_complete, NULL);
     cord_client_process_item(handle);
     umock_c_reset_all_calls();
 
@@ -962,8 +962,8 @@ CTEST_FUNCTION(cord_client_process_item_recv_success)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    CORD_HANDLE handle = cord_client_create(&config);
-    (void)cord_client_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
+    CORD_HANDLE handle = cord_client_create(&config, test_on_bytes_recv, NULL, test_on_error, NULL);
+    (void)cord_client_open(handle, test_on_open_complete, NULL);
     cord_client_process_item(handle);
     umock_c_reset_all_calls();
 
@@ -990,8 +990,8 @@ CTEST_FUNCTION(cord_client_process_item_recv_general_fail)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    CORD_HANDLE handle = cord_client_create(&config);
-    (void)cord_client_open(handle, test_on_open_complete, NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
+    CORD_HANDLE handle = cord_client_create(&config, test_on_bytes_recv, NULL, test_on_error, NULL);
+    (void)cord_client_open(handle, test_on_open_complete, NULL);
     cord_client_process_item(handle);
     umock_c_reset_all_calls();
 
@@ -1032,7 +1032,7 @@ CTEST_FUNCTION(cord_client_query_endpoint_success)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    CORD_HANDLE handle = cord_client_create(&config);
+    CORD_HANDLE handle = cord_client_create(&config, test_on_bytes_recv, NULL, test_on_error, NULL);
     umock_c_reset_all_calls();
 
     // act
@@ -1067,7 +1067,7 @@ CTEST_FUNCTION(cord_client_query_port_success)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    CORD_HANDLE handle = cord_client_create(&config);
+    CORD_HANDLE handle = cord_client_create(&config, test_on_bytes_recv, NULL, test_on_error, NULL);
     umock_c_reset_all_calls();
 
     // act
@@ -1104,4 +1104,4 @@ CTEST_FUNCTION(xio_cord_get_interface_success)
     // cleanup
 }
 
-CTEST_END_TEST_SUITE(patchcord_client_winsock_ut)
+CTEST_END_TEST_SUITE(cord_client_winsock_ut)

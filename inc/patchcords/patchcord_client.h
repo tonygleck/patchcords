@@ -61,6 +61,13 @@ typedef struct SOCKETIO_CONFIG_TAG
     void* accepted_socket;
 } SOCKETIO_CONFIG;
 
+typedef struct TLS_CONFIG_TAG
+{
+    const char* hostname;
+    uint16_t port;
+    const SOCKETIO_CONFIG* socket_config;
+} TLS_CONFIG;
+
 typedef void(*ON_BYTES_RECEIVED)(void* context, const unsigned char* buffer, size_t size);
 typedef void(*ON_SEND_COMPLETE)(void* context, IO_SEND_RESULT send_result);
 typedef void(*ON_IO_OPEN_COMPLETE)(void* context, IO_OPEN_RESULT open_result);

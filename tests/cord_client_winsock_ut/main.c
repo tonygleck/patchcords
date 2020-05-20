@@ -6,6 +6,6 @@
 int main(void)
 {
     size_t failedTestCount = 0;
-    CTEST_RUN_TEST_SUITE(patchcord_client_winsock_ut, failedTestCount);
+    CTEST_RUN_TEST_SUITE(cord_client_winsock_ut, failedTestCount);
     return failedTestCount;
 }

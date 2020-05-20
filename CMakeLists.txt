@@ -60,7 +60,7 @@ set(socket_lib)
 set(dependent_libs)
 if (WIN32)
     set(socket_c_files
-        ./src/patchcord_client_winsock.c
+        ./src/cord_client_winsock.c
     )
     set(socket_lib cord_winsock)
     set(dependent_libs ws2_32)

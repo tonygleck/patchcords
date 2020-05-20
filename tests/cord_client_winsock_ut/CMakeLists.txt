@@ -5,19 +5,18 @@ cmake_minimum_required(VERSION 3.5)
 
 compileAsC11()
 
-set(theseTestsName patchcord_client_winsock_ut)
+set(theseTestsName cord_client_winsock_ut)
 
 set(${theseTestsName}_test_files
     ${theseTestsName}.c
 )
 
 set(${theseTestsName}_c_files
-    ../../src/patchcord_client_winsock.c
+    ../../src/cord_client_winsock.c
 )
 
 set(${theseTestsName}_h_files
 )
 
-add_definitions(-DUSE_SOCKET_DEBUG_SHIM)
-
 build_test_project(${theseTestsName} "tests/lib_utils_tests")
+add_definitions(-DUSE_SOCKET_DEBUG_SHIM)

@@ -22,7 +22,8 @@ MOCKABLE_FUNCTION(, int, cord_client_listen, CORD_HANDLE, xio, ON_INCOMING_CONNE
 MOCKABLE_FUNCTION(, int, cord_client_close, CORD_HANDLE, xio, ON_IO_CLOSE_COMPLETE, on_io_close_complete, void*, callback_context);
 MOCKABLE_FUNCTION(, int, cord_client_send, CORD_HANDLE, xio, const void*, buffer, size_t, size, ON_SEND_COMPLETE, on_send_complete, void*, callback_context);
 MOCKABLE_FUNCTION(, void, cord_client_process_item, CORD_HANDLE, xio);
-MOCKABLE_FUNCTION(, int, cord_client_set_certificate, CORD_HANDLE, handle, const char*, certificate, const unsigned char*, private_key);
+MOCKABLE_FUNCTION(, int, cord_client_set_client_cert, CORD_HANDLE, handle, const char*, certificate, const unsigned char*, private_key);
+MOCKABLE_FUNCTION(, int, cord_client_set_server_cert, CORD_HANDLE, handle, const char*, certificate);
 MOCKABLE_FUNCTION(, const char*, cord_client_query_uri, CORD_HANDLE, xio);
 MOCKABLE_FUNCTION(, uint16_t, cord_client_query_port, CORD_HANDLE, xio);
 

@@ -25,6 +25,7 @@ typedef enum SOCKET_STATE_TAG
     IO_STATE_OPEN,
     IO_STATE_HANDSHAKE,
     IO_STATE_OPENED,
+    IO_STATE_LISTENING,
     IO_STATE_ERROR
 } SOCKET_STATE;
 
@@ -71,7 +72,7 @@ static int write_outgoing_bytes(TLS_INSTANCE* tls_instance, ON_SEND_COMPLETE on_
     }
     else
     {
-        unsigned char* bytes_to_send = malloc(pending);
+        unsigned char* bytes_to_send = (unsigned char*)malloc(pending);
         if (bytes_to_send == NULL)
         {
             log_error("Failure allocating receiving buffer");
@@ -99,6 +100,33 @@ static int write_outgoing_bytes(TLS_INSTANCE* tls_instance, ON_SEND_COMPLETE on_
     return result;
 }
 
+static X509* create_x509_bio(const char* certificate)
+{
+    X509* result;
+    BIO* bio;
+    if ((bio = BIO_new_mem_buf((char*)certificate, -1)) == NULL)
+    {
+        log_error("Failure loading the certificate file");
+        result = NULL;
+    }
+    else
+    {
+        if ((result = PEM_read_bio_X509(bio, NULL, NULL, NULL)) == NULL)
+        {
+            log_error("Failure reading certificate into bio");
+        }
+        BIO_free(bio);
+    }
+    return result;
+}
+
+static int add_client_certificates(TLS_INSTANCE* tls_instance)
+{
+    int result;
+    result = 0;
+    return result;
+}
+
 static int add_server_certificates(TLS_INSTANCE* tls_instance)
 {
     int result;
@@ -115,48 +143,28 @@ static int add_server_certificates(TLS_INSTANCE* tls_instance)
         log_error("Failure creating bio memory");
         result = __LINE__;
     }
-    else if ((bio_method = BIO_s_mem()) == NULL)
-    {
-        log_error("Failure creating bio memory");
-        result = __LINE__;
-    }
-    else if ((cert_memory_bio = BIO_new(bio_method)) == NULL)
+    else if ((cert_memory_bio = BIO_new_mem_buf((char*)tls_instance->certificate, -1)) == NULL)
     {
         log_error("Failure creating bio memory");
         result = __LINE__;
     }
     else
     {
-        int cert_bio_len = BIO_puts(cert_memory_bio, tls_instance->server_cert);
-        if (cert_bio_len < 0)
+        bool loop_success = true;
+        X509* x509_cert;
+        while ((x509_cert = PEM_read_bio_X509(cert_memory_bio, NULL, NULL, NULL)) != NULL)
         {
-            log_error("Failure creating bio memory");
-            result = __LINE__;
-        }
-        else if ( (size_t)cert_bio_len != strlen(tls_instance->server_cert))
-        {
-            log_error("mismatching legths");
-            BIO_free(cert_memory_bio);
-            result = __LINE__;
-        }
-        else
-        {
-            bool loop_success = true;
-            X509* x509_cert;
-            while ((x509_cert = PEM_read_bio_X509(cert_memory_bio, NULL, NULL, NULL)) != NULL)
+            if (!X509_STORE_add_cert(cert_store, x509_cert))
             {
-                if (!X509_STORE_add_cert(cert_store, x509_cert))
-                {
-                    X509_free(x509_cert);
-                    log_error("failure in X509_STORE_add_cert");
-                    loop_success = false;
-                    break;
-                }
                 X509_free(x509_cert);
+                log_error("failure in X509_STORE_add_cert");
+                loop_success = false;
+                break;
             }
-            result = loop_success ? 0 : __LINE__;
-            BIO_free(cert_memory_bio);
+            X509_free(x509_cert);
         }
+        result = loop_success ? 0 : __LINE__;
+        BIO_free(cert_memory_bio);
     }
     return result;
 }
@@ -201,7 +209,66 @@ static void send_tls_handshake(TLS_INSTANCE* tls_instance)
     }
 }
 
-static int open_openssl_instance(TLS_INSTANCE* tls_instance)
+static int load_certificates(TLS_INSTANCE* tls_instance)
+{
+    int result;
+    X509* x509_cert = create_x509_bio(tls_instance->certificate);
+    if (x509_cert == NULL)
+    {
+        log_error("Failure reading certificate into bio");
+        //ERR_print_errors_fp(stderr);
+        result = __LINE__;
+    }
+    else if (SSL_CTX_use_certificate(tls_instance->ssl_ctx, x509_cert) <= 0)
+    {
+        log_error("Failure loading the certificate file");
+        X509_free(x509_cert);
+        result = __LINE__;
+    }
+    else
+    {
+        EVP_PKEY* evp_key;
+        BIO* bio_key = BIO_new_mem_buf((char*)tls_instance->private_key, -1);
+        if (bio_key == NULL)
+        {
+            log_error("Failure loading the private key");
+            result = __LINE__;
+        }
+        else if ((evp_key = PEM_read_bio_PrivateKey(bio_key, NULL, NULL, NULL)) == NULL)
+        {
+            log_error("Failure reading the private key");
+            result = __LINE__;
+            BIO_free(bio_key);
+        }
+        else
+        {
+            // set the private key from KeyFile (may be the same as CertFile)
+            if (SSL_CTX_use_PrivateKey(tls_instance->ssl_ctx, evp_key) <= 0)
+            {
+                //ERR_print_errors_fp(stderr);
+                log_error("Failure using the private key");
+                result = __LINE__;
+            }
+            // verify private key
+            else if (!SSL_CTX_check_private_key(tls_instance->ssl_ctx) )
+            {
+                //fprintf(stderr, "Private key does not match the public certificate\n");
+                log_error("Failure validating private key against the public certificate");
+                result = __LINE__;
+            }
+            else
+            {
+                result = 0;
+            }
+            EVP_PKEY_free(evp_key);
+            BIO_free(bio_key);
+        }
+        X509_free(x509_cert);
+    }
+    return result;
+}
+
+static int create_ssl_ctx(TLS_INSTANCE* tls_instance)
 {
     int result;
     const SSL_METHOD* method = TLS_client_method();
@@ -210,9 +277,25 @@ static int open_openssl_instance(TLS_INSTANCE* tls_instance)
         log_error("Failure creating ssl context");
         result = __LINE__;
     }
+    else
+    {
+        result = 0;
+    }
+    return result;
+}
+
+static int open_openssl_instance(TLS_INSTANCE* tls_instance)
+{
+    int result;
+    if (create_ssl_ctx(tls_instance) != 0)
+    {
+        log_error("Failure creating ssl context");
+        result = __LINE__;
+    }
     else if ((tls_instance->input_bio = BIO_new(BIO_s_mem())) == NULL)
     {
         SSL_CTX_free(tls_instance->ssl_ctx);
+        tls_instance->ssl_ctx = NULL;
         log_error("Failure creating bio memory");
         result = __LINE__;
     }
@@ -220,6 +303,7 @@ static int open_openssl_instance(TLS_INSTANCE* tls_instance)
     {
         (void)BIO_free(tls_instance->input_bio);
         SSL_CTX_free(tls_instance->ssl_ctx);
+        tls_instance->ssl_ctx = NULL;
         log_error("Failure creating bio memory");
         result = __LINE__;
     }
@@ -228,17 +312,18 @@ static int open_openssl_instance(TLS_INSTANCE* tls_instance)
         (void)BIO_free(tls_instance->input_bio);
         (void)BIO_free(tls_instance->output_bio);
         SSL_CTX_free(tls_instance->ssl_ctx);
+        tls_instance->ssl_ctx = NULL;
         log_error("Failure creating bio memory");
         result = __LINE__;
     }
-    /*else if (tls_instance->server_cert != NULL && tls_instance->private_key && add_client_certificates(tls_instance) != 0)
+    else if (tls_instance->certificate != NULL && tls_instance->private_key && add_client_certificates(tls_instance) != 0)
     {
         (void)BIO_free(tls_instance->input_bio);
         (void)BIO_free(tls_instance->output_bio);
         SSL_CTX_free(tls_instance->ssl_ctx);
         log_error("Failure creating bio memory");
         result = __LINE__;
-    }*/
+    }
     else
     {
         //SSL_CTX_set_cert_verify_callback(tlsInstance->ssl_context, tlsInstance->tls_validation_callback, tlsInstance->tls_validation_callback_data);
@@ -248,6 +333,7 @@ static int open_openssl_instance(TLS_INSTANCE* tls_instance)
             (void)BIO_free(tls_instance->input_bio);
             (void)BIO_free(tls_instance->output_bio);
             SSL_CTX_free(tls_instance->ssl_ctx);
+            tls_instance->ssl_ctx = NULL;
             log_error("Failure creating bio memory");
             result = __LINE__;
         }
@@ -306,16 +392,24 @@ static void deinitialize_openssl(void)
 static void on_socket_open_complete(void* ctx, IO_OPEN_RESULT open_result)
 {
     TLS_INSTANCE* tls_instance = (TLS_INSTANCE*)ctx;
-    if (open_result != IO_OPEN_OK)
+    if (tls_instance != NULL)
     {
-        if (tls_instance->current_state == IO_STATE_OPENING)
+        if (open_result == IO_OPEN_OK)
         {
-            tls_instance->current_state = IO_STATE_HANDSHAKE;
+            if (tls_instance->current_state == IO_STATE_OPENING)
+            {
+                tls_instance->current_state = IO_STATE_HANDSHAKE;
+            }
+        }
+        else
+        {
+            log_error("Failure opening socket");
+            tls_instance->current_state == IO_STATE_ERROR;
         }
     }
     else
     {
-        log_error("Failure opening socket");
+        log_error("Failure on open complete ctx is NULL");
     }
 }
 
@@ -377,18 +471,29 @@ static void on_socket_error(void* ctx, IO_ERROR_RESULT error_result)
     TLS_INSTANCE* tls_instance = (TLS_INSTANCE*)ctx;
     if (tls_instance != NULL)
     {
+        tls_instance->on_error(tls_instance->on_error_ctx, error_result);
     }
 }
 
 static int create_underlying_socket(TLS_INSTANCE* tls_instance, const TLS_CONFIG* config)
 {
     int result;
-    if ((tls_instance->socket_iface = xio_cord_get_interface()) == NULL)
+    if ((tls_instance->socket_iface = config->socket_desc) == NULL ||
+        tls_instance->socket_iface->interface_impl_create == NULL ||
+        tls_instance->socket_iface->interface_impl_destroy == NULL ||
+        tls_instance->socket_iface->interface_impl_open == NULL ||
+        tls_instance->socket_iface->interface_impl_close == NULL ||
+        tls_instance->socket_iface->interface_impl_process_item == NULL ||
+        tls_instance->socket_iface->interface_impl_send == NULL ||
+        tls_instance->socket_iface->interface_impl_listen == NULL ||
+        tls_instance->socket_iface->interface_impl_query_uri == NULL ||
+        tls_instance->socket_iface->interface_impl_query_port == NULL
+    )
     {
-        log_error("Failure xio_cord_get_interface return NULL");
+        log_error("Socket Interface functions are invalid");
         result = __LINE__;
     }
-    else if ((tls_instance->underlying_socket = tls_instance->socket_iface->interface_impl_create(config->socket_config, on_socket_bytes_recv, tls_instance, on_socket_error, tls_instance)) != NULL)
+    else if ((tls_instance->underlying_socket = tls_instance->socket_iface->interface_impl_create(config->socket_config, on_socket_bytes_recv, tls_instance, on_socket_error, tls_instance)) == NULL)
     {
         log_error("Failure creating underlying socket");
         result = __LINE__;
@@ -396,6 +501,40 @@ static int create_underlying_socket(TLS_INSTANCE* tls_instance, const TLS_CONFIG
     else
     {
         result = 0;
+    }
+    return result;
+}
+
+static TLS_INSTANCE* create_tls_info(const TLS_CONFIG* config)
+{
+    TLS_INSTANCE* result;
+    if ((result = malloc(sizeof(TLS_INSTANCE))) == NULL)
+    {
+        log_error("Failure allocating tls instance");
+    }
+    else
+    {
+        memset(result, 0, sizeof(TLS_INSTANCE));
+        if (create_underlying_socket(result, config) != 0)
+        {
+            log_error("Failure cloning hostname value");
+            free(result);
+            result = NULL;
+        }
+        else
+        {
+            if (config->socket_config->accepted_socket == NULL)
+            {
+                // Copy the host name
+                if (clone_string(&result->hostname, config->hostname) != 0)
+                {
+                    log_error("Failure cloning hostname value");
+                    result->socket_iface->interface_impl_destroy(result->underlying_socket);
+                    free(result);
+                    result = NULL;
+                }
+            }
+        }
     }
     return result;
 }
@@ -411,30 +550,15 @@ CORD_HANDLE cord_client_create(const void* parameters, ON_BYTES_RECEIVED on_byte
     else if (initialize_openssl() != 0)
     {
         log_error("Failure initializing openssl");
-    }
-    else if ((result = malloc(sizeof(TLS_INSTANCE))) == NULL)
-    {
-        log_error("Failure allocating tls instance");
+        result = NULL;
     }
     // Open the underlying socket
     else
     {
         const TLS_CONFIG* config = (const TLS_CONFIG*)parameters;
-        memset(result, 0, sizeof(TLS_INSTANCE));
-
-        if (create_underlying_socket(result, config) != 0)
+        if ((result = create_tls_info(config)) == NULL)
         {
-            log_error("Failure cloning hostname value");
-            free(result);
-            result = NULL;
-        }
-        // Copy the host name
-        else if (clone_string(&result->hostname, config->hostname) != 0)
-        {
-            log_error("Failure cloning hostname value");
-            result->socket_iface->interface_impl_destroy(result->underlying_socket);
-            free(result);
-            result = NULL;
+            log_error("Failure creating tls information");
         }
         else
         {
@@ -454,9 +578,6 @@ void cord_client_destroy(CORD_HANDLE handle)
     {
         TLS_INSTANCE* tls_instance = (TLS_INSTANCE*)handle;
         tls_instance->socket_iface->interface_impl_destroy(tls_instance->underlying_socket);
-        (void)BIO_free(tls_instance->input_bio);
-        (void)BIO_free(tls_instance->output_bio);
-        SSL_CTX_free(tls_instance->ssl_ctx);
 
         deinitialize_openssl();
         free(tls_instance->hostname);
@@ -506,8 +627,31 @@ int cord_client_listen(CORD_HANDLE handle, ON_INCOMING_CONNECT incoming_conn_cb,
     }
     else
     {
-        // TODO: Setup listening TLS info
-        result = __LINE__;
+        TLS_INSTANCE* tls_instance = (TLS_INSTANCE*)handle;
+        if (create_ssl_ctx(tls_instance) != 0)
+        {
+            log_error("Failure creating ssl context");
+            result = __LINE__;
+        }
+        else if (load_certificates(tls_instance) != 0)
+        {
+            log_error("Failure loadding certificates");
+            SSL_CTX_free(tls_instance->ssl_ctx);
+            tls_instance->ssl_ctx = NULL;
+            result = __LINE__;
+        }
+        else if (tls_instance->socket_iface->interface_impl_listen(tls_instance->underlying_socket, incoming_conn_cb, user_ctx) != 0)
+        {
+            log_error("Failure Listening on socket");
+            SSL_CTX_free(tls_instance->ssl_ctx);
+            tls_instance->ssl_ctx = NULL;
+            result = __LINE__;
+        }
+        else
+        {
+            tls_instance->current_state = IO_STATE_LISTENING;
+            result = 0;
+        }
     }
     return result;
 }
@@ -533,7 +677,6 @@ int cord_client_close(CORD_HANDLE handle, ON_IO_CLOSE_COMPLETE on_close_complete
             TLS_INSTANCE* tls_instance = (TLS_INSTANCE*)handle;
             tls_instance->on_close_complete = on_close_complete;
             tls_instance->on_close_ctx = callback_ctx;
-            tls_instance->current_state = IO_STATE_CLOSING;
 
             if (tls_instance->current_state == IO_STATE_OPENING || tls_instance->current_state == IO_STATE_OPEN)
             {
@@ -544,9 +687,18 @@ int cord_client_close(CORD_HANDLE handle, ON_IO_CLOSE_COMPLETE on_close_complete
             {
                 log_error("Failure attempting to close socket");
                 result = __LINE__;
+                tls_instance->current_state = IO_STATE_ERROR;
             }
             else
             {
+                tls_instance->current_state = IO_STATE_CLOSING;
+                SSL_free(tls_instance->ssl_object);
+                (void)BIO_free(tls_instance->input_bio);
+                (void)BIO_free(tls_instance->output_bio);
+                if (tls_instance->ssl_ctx != NULL)
+                {
+                    SSL_CTX_free(tls_instance->ssl_ctx);
+                }
                 result = 0;
             }
         }
@@ -557,9 +709,9 @@ int cord_client_close(CORD_HANDLE handle, ON_IO_CLOSE_COMPLETE on_close_complete
 int cord_client_send(CORD_HANDLE handle, const void* buffer, size_t size, ON_SEND_COMPLETE on_send_complete, void* callback_context)
 {
     int result;
-    if (handle == NULL)
+    if (handle == NULL || buffer == NULL)
     {
-        log_error("Invalid parameter specified");
+        log_error("Invalid parameter specified handle: %p, buffer %p", handle, buffer);
         result =__LINE__;
     }
     else
@@ -618,6 +770,7 @@ void cord_client_process_item(CORD_HANDLE handle)
                     tls_instance->on_close_complete(tls_instance->on_close_ctx);
                 }
                 break;
+            case IO_STATE_LISTENING:
             case IO_STATE_OPENING:
             case IO_STATE_CLOSING:
             case IO_STATE_OPENED:
@@ -630,7 +783,7 @@ void cord_client_process_item(CORD_HANDLE handle)
     }
 }
 
-int cord_client_set_certificate(CORD_HANDLE handle, const char* certificate, const unsigned char* private_key)
+int cord_client_set_client_cert(CORD_HANDLE handle, const char* certificate, const unsigned char* private_key)
 {
     int result;
     if (handle == NULL || certificate == NULL || private_key == NULL)
@@ -651,6 +804,32 @@ int cord_client_set_certificate(CORD_HANDLE handle, const char* certificate, con
             TLS_INSTANCE* tls_instance = (TLS_INSTANCE*)handle;
             tls_instance->certificate = certificate;
             tls_instance->private_key = private_key;
+            result = 0;
+        }
+    }
+    return result;
+}
+
+int cord_client_set_server_cert(CORD_HANDLE handle, const char* certificate)
+{
+    int result;
+    if (handle == NULL || certificate == NULL)
+    {
+        log_error("Invalid parameter handle: %p, certificate: %p", handle, certificate);
+        result == __LINE__;
+    }
+    else
+    {
+        TLS_INSTANCE* tls_instance = (TLS_INSTANCE*)handle;
+        if (tls_instance->current_state == IO_STATE_OPEN || tls_instance->current_state == IO_STATE_OPENED || tls_instance->current_state == IO_STATE_HANDSHAKE)
+        {
+            log_error("Invalid state to set certificate");
+            result == __LINE__;
+        }
+        else
+        {
+            TLS_INSTANCE* tls_instance = (TLS_INSTANCE*)handle;
+            tls_instance->server_cert = certificate;
             result = 0;
         }
     }

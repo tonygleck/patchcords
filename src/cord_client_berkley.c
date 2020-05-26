@@ -851,11 +851,20 @@ uint16_t cord_client_query_port(CORD_HANDLE xio)
     return result;
 }
 
-int cord_client_set_certificate(CORD_HANDLE xio, const char* certificate, const unsigned char* private_key)
+int cord_client_set_client_cert(CORD_HANDLE xio, const char* certificate, const unsigned char* private_key)
 {
     (void)xio;
     (void)certificate;
     (void)private_key;
+    int result = __LINE__;
+    log_error("API call not supported");
+    return result;
+}
+
+int cord_client_set_server_cert(CORD_HANDLE xio, const char* certificate)
+{
+    (void)xio;
+    (void)certificate;
     int result = __LINE__;
     log_error("API call not supported");
     return result;

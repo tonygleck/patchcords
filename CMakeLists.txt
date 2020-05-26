@@ -85,7 +85,7 @@ if (${enable_tls_lib})
         ./inc/patchcords/cord_client.h
     )
     add_library(cord_openssl ${tls_c_files} ${tls_h_files})
-    target_link_libraries(cord_openssl patchcords lib-util-c ${dependent_libs})
+    target_link_libraries(cord_openssl patchcords lib-util-c ssl crypto)
 endif()
 
 if (${patchcords_ut})

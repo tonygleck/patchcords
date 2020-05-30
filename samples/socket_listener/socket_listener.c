@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 #include "patchcords/patchcord_client.h"
-#include "patchcords/cord_client.h"
+#include "patchcords/cord_socket_client.h"
 
 typedef struct SAMPLE_DATA_TAG
 {
@@ -56,15 +56,16 @@ void on_xio_error(void* context, IO_ERROR_RESULT error_result)
     printf("Error detected\n");
 }
 
-void on_accept_conn(void* context, const SOCKETIO_CONFIG* config)
+void on_accept_conn(void* context, const void* config)
 {
+    const SOCKETIO_CONFIG* socket_config = (const SOCKETIO_CONFIG*)config;
     SAMPLE_DATA* sample = (SAMPLE_DATA*)context;
     PATCHCORD_CALLBACK_INFO client_info;
     client_info.on_bytes_received = on_xio_bytes_recv;
     client_info.on_bytes_received_ctx = sample;
     client_info.on_io_error = on_xio_error;
     client_info.on_io_error_ctx = sample;
-    sample->incoming_socket = patchcord_client_create(xio_cord_get_interface(), config, &client_info);
+    sample->incoming_socket = patchcord_client_create(cord_socket_get_interface(), config, &client_info);
 }
 
 int main()
@@ -75,7 +76,7 @@ int main()
     config.port = 4444;
     config.address_type = ADDRESS_TYPE_IP;
 
-    const IO_INTERFACE_DESCRIPTION* io_desc = xio_cord_get_interface();
+    const IO_INTERFACE_DESCRIPTION* io_desc = cord_socket_get_interface();
     PATCHCORD_CALLBACK_INFO client_info;
     client_info.on_bytes_received = on_xio_bytes_recv;
     client_info.on_bytes_received_ctx = &data;

@@ -8,6 +8,7 @@ project(patchcords)
 
 option(patchcords_ut "Include unittest in build" OFF)
 option(patchcords_samples "Include samples in build" OFF)
+option(enable_tls_lib   "Turn on the TLS libraries" ON)
 
 if (CMAKE_BUILD_TYPE MATCHES "Debug" AND NOT WIN32)
     set(DEBUG_CONFIG ON)
@@ -53,7 +54,7 @@ compileTargetAsC99(patchcords)
 
 # Berkley socket library
 set(socket_h_files
-    ./inc/patchcords/cord_client.h
+    ./inc/patchcords/cord_socket_client.h
 )
 set(socket_lib)
 set(dependent_libs)
@@ -75,6 +76,17 @@ target_link_libraries(${socket_lib} patchcords lib-util-c ${dependent_libs})
 
 addCompileSettings(${socket_lib})
 compileTargetAsC99(${socket_lib})
+
+if (${enable_tls_lib})
+    set(tls_c_files
+        ./src/cord_client_openssl.c
+    )
+    set(tls_h_files
+    ./inc/patchcords/cord_tls_client.h
+    )
+    add_library(cord_openssl ${tls_c_files} ${tls_h_files})
+    target_link_libraries(cord_openssl patchcords lib-util-c ssl crypto)
+endif()
 
 if (${patchcords_ut})
     enable_testing()

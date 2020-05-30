@@ -20,7 +20,7 @@
 #include "lib-util-c/alarm_timer.h"
 
 #include "patchcords/patchcord_client.h"
-#include "patchcords/cord_client.h"
+#include "patchcords/cord_socket_client.h"
 
 static const char* TEST_HOSTNAME = "localhost";
 static uint32_t TEST_32_BYTES_SEND[32];
@@ -104,7 +104,7 @@ static PATCH_INSTANCE_HANDLE create_io_ip_socket_objects(const SOCKETIO_CONFIG* 
 {
     PATCH_INSTANCE_HANDLE result;
 
-    const IO_INTERFACE_DESCRIPTION* io_interface_description = xio_cord_get_interface();
+    const IO_INTERFACE_DESCRIPTION* io_interface_description = cord_socket_get_interface();
 
     // Create the listener
     result = patchcord_client_create(io_interface_description, config, client_cb);
@@ -139,9 +139,11 @@ static void on_socket_bytes_recv_cb(void* context, const unsigned char* buffer, 
     CTEST_ASSERT_ARE_EQUAL(int, 0, byte_buffer_construct(&e2e_data->sent_data, buffer, size), "Failure allocating send_data of size %d", (int)size);
 }
 
-static void on_socket_connect_cb(void* context, const SOCKETIO_CONFIG* config)
+static void on_socket_connect_cb(void* context, const void* config)
 {
     log_debug("on_socket_connect_cb called");
+    const SOCKETIO_CONFIG* socket_config = (const SOCKETIO_CONFIG*)config;
+
     CLIENT_E2E_DATA* e2e_data = (CLIENT_E2E_DATA*)context;
     CTEST_ASSERT_IS_NOT_NULL(e2e_data, "on_socket_connect_cb context NULL");
 

@@ -13,3 +13,5 @@ endfunction()
 
 add_sample_directory(socket_listener)
 add_sample_directory(socket_sample)
+add_sample_directory(tls_client_listener)
+add_sample_directory(tls_client_sample)

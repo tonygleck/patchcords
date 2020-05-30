@@ -26,7 +26,7 @@
 
 #include "patchcords/patchcord_client.h"
 #include "patchcords/socket_debug_shim.h"
-#include "patchcords/cord_client.h"
+#include "patchcords/cord_socket_client.h"
 
 #include <sys/ioctl.h>
 #include <sys/types.h>
@@ -522,7 +522,7 @@ static SOCKET_INSTANCE* create_socket_info(const SOCKETIO_CONFIG* config)
     return result;
 }
 
-CORD_HANDLE cord_client_create(const void* parameters, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_context, ON_IO_ERROR on_io_error, void* on_io_error_context)
+CORD_HANDLE cord_socket_create(const void* parameters, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_context, ON_IO_ERROR on_io_error, void* on_io_error_context)
 {
     SOCKET_INSTANCE* result;
     if (parameters == NULL)
@@ -545,7 +545,7 @@ CORD_HANDLE cord_client_create(const void* parameters, ON_BYTES_RECEIVED on_byte
     return (CORD_HANDLE)result;
 }
 
-void cord_client_destroy(CORD_HANDLE xio)
+void cord_socket_destroy(CORD_HANDLE xio)
 {
     if (xio != NULL)
     {
@@ -560,7 +560,7 @@ void cord_client_destroy(CORD_HANDLE xio)
     }
 }
 
-int cord_client_open(CORD_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_context)
+int cord_socket_open(CORD_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_context)
 {
     int result;
     if (xio == NULL)
@@ -592,7 +592,7 @@ int cord_client_open(CORD_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, v
     return result;
 }
 
-int cord_client_listen(CORD_HANDLE xio, ON_INCOMING_CONNECT incoming_conn_cb, void* user_ctx)
+int cord_socket_listen(CORD_HANDLE xio, ON_INCOMING_CONNECT incoming_conn_cb, void* user_ctx)
 {
     uint16_t result;
     if (xio == NULL || incoming_conn_cb == NULL)
@@ -654,7 +654,7 @@ int cord_client_listen(CORD_HANDLE xio, ON_INCOMING_CONNECT incoming_conn_cb, vo
     return result;
 }
 
-int cord_client_close(CORD_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_complete, void* ctx)
+int cord_socket_close(CORD_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_complete, void* ctx)
 {
     int result;
     if (xio == NULL)
@@ -681,7 +681,7 @@ int cord_client_close(CORD_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_complete
     return result;
 }
 
-int cord_client_send(CORD_HANDLE xio, const void* buffer, size_t size, ON_SEND_COMPLETE on_send_complete, void* callback_context)
+int cord_socket_send(CORD_HANDLE xio, const void* buffer, size_t size, ON_SEND_COMPLETE on_send_complete, void* callback_context)
 {
     int result;
     if (xio == NULL || buffer == NULL || size == 0)
@@ -744,80 +744,82 @@ int cord_client_send(CORD_HANDLE xio, const void* buffer, size_t size, ON_SEND_C
     return result;
 }
 
-void cord_client_process_item(CORD_HANDLE xio)
+void cord_socket_process_item(CORD_HANDLE xio)
 {
     if (xio != NULL)
     {
         SOCKET_INSTANCE* socket_impl = (SOCKET_INSTANCE*)xio;
-        if (socket_impl->current_state == IO_STATE_OPENING)
+        switch (socket_impl->current_state)
         {
-            // Open the socket
-            if (open_socket(socket_impl) != 0)
-            {
-                socket_impl->current_state = IO_STATE_ERROR;
-            }
-            else
-            {
-                socket_impl->current_state = IO_STATE_OPEN;
-            }
-        }
-        else if (socket_impl->current_state == IO_STATE_CLOSING)
-        {
-            close_socket(socket_impl);
-            socket_impl->current_state = IO_STATE_CLOSED;
-        }
-        else if (socket_impl->current_state == IO_STATE_OPEN)
-        {
-            // Going into the send/recv loop.  Keep trying to send the data until:
-            // 1. there isn't anything to send
-            // 2. there was an error
-            // 3. We have a wait or partial send (the socket is backed up)
-            // 4. Data was recieved so we probably should send the data
-            bool cont_process_loop = true;
-            do
-            {
-                if (send_socket_cached_data(socket_impl) != SEND_RESULT_SUCCESS)
+            case IO_STATE_OPENING:
+                // Open the socket
+                if (open_socket(socket_impl) != 0)
                 {
-                    cont_process_loop = false;
-                }
-                if (recv_socket_data(socket_impl) != 0)
-                {
-                    cont_process_loop = false;
-                }
-            } while (cont_process_loop);
-        }
-        else if (socket_impl->current_state == IO_STATE_LISTENING)
-        {
-            struct sockaddr_in cli_addr;
-            socklen_t client_len = sizeof(cli_addr);
-            // Accept actual connection from the client
-            int accepted_socket = accept(socket_impl->socket, (struct sockaddr *)&cli_addr, &client_len);
-            if (accepted_socket != -1)
-            {
-                int flags;
-                if ((-1 == (flags = fcntl(accepted_socket, F_GETFL, 0))) ||
-                    (fcntl(accepted_socket, F_SETFL, flags | O_NONBLOCK) == -1))
-                {
-                    log_error("Failure setting accepted socket to non blocking");
-                    (void)shutdown(accepted_socket, SHUT_RDWR);
-                    close(accepted_socket);
+                    socket_impl->current_state = IO_STATE_ERROR;
                 }
                 else
                 {
-                    SOCKETIO_CONFIG config = {0};
-                    config.port = cli_addr.sin_port;
-                    config.accepted_socket = &accepted_socket;
-                    socket_impl->on_incoming_conn(socket_impl->on_incoming_ctx, &config);
+                    socket_impl->current_state = IO_STATE_OPEN;
                 }
+                break;
+            case IO_STATE_CLOSING:
+                close_socket(socket_impl);
+                socket_impl->current_state = IO_STATE_CLOSED;
+                break;
+            case IO_STATE_OPEN:
+            {
+                // Going into the send/recv loop.  Keep trying to send the data until:
+                // 1. there isn't anything to send
+                // 2. there was an error
+                // 3. We have a wait or partial send (the socket is backed up)
+                // 4. Data was recieved so we probably should send the data
+                bool cont_process_loop = true;
+                do
+                {
+                    if (send_socket_cached_data(socket_impl) != SEND_RESULT_SUCCESS)
+                    {
+                        cont_process_loop = false;
+                    }
+                    if (recv_socket_data(socket_impl) != 0)
+                    {
+                        cont_process_loop = false;
+                    }
+                } while (cont_process_loop);
+                break;
             }
-        }
-        else
-        {
+            case IO_STATE_LISTENING:
+            {
+                struct sockaddr_in cli_addr;
+                socklen_t client_len = sizeof(cli_addr);
+                // Accept actual connection from the client
+                int accepted_socket = accept(socket_impl->socket, (struct sockaddr *)&cli_addr, &client_len);
+                if (accepted_socket != -1)
+                {
+                    int flags;
+                    if ((-1 == (flags = fcntl(accepted_socket, F_GETFL, 0))) ||
+                        (fcntl(accepted_socket, F_SETFL, flags | O_NONBLOCK) == -1))
+                    {
+                        log_error("Failure setting accepted socket to non blocking");
+                        (void)shutdown(accepted_socket, SHUT_RDWR);
+                        close(accepted_socket);
+                    }
+                    else
+                    {
+                        SOCKETIO_CONFIG config = {0};
+                        config.port = cli_addr.sin_port;
+                        config.accepted_socket = &accepted_socket;
+                        socket_impl->on_incoming_conn(socket_impl->on_incoming_ctx, &config);
+                    }
+                }
+                break;
+            }
+            default:
+                break;
         }
     }
 }
 
-const char* cord_client_query_uri(CORD_HANDLE xio)
+const char* cord_socket_query_uri(CORD_HANDLE xio)
 {
     const char* result;
     if (xio == NULL)
@@ -833,7 +835,7 @@ const char* cord_client_query_uri(CORD_HANDLE xio)
     return result;
 }
 
-uint16_t cord_client_query_port(CORD_HANDLE xio)
+uint16_t cord_socket_query_port(CORD_HANDLE xio)
 {
     uint16_t result;
     if (xio == NULL)
@@ -851,18 +853,18 @@ uint16_t cord_client_query_port(CORD_HANDLE xio)
 
 static const IO_INTERFACE_DESCRIPTION socket_io_interface =
 {
-    cord_client_create,
-    cord_client_destroy,
-    cord_client_open,
-    cord_client_close,
-    cord_client_send,
-    cord_client_process_item,
-    cord_client_query_uri,
-    cord_client_query_port,
-    cord_client_listen
+    cord_socket_create,
+    cord_socket_destroy,
+    cord_socket_open,
+    cord_socket_close,
+    cord_socket_send,
+    cord_socket_process_item,
+    cord_socket_query_uri,
+    cord_socket_query_port,
+    cord_socket_listen
 };
 
-const IO_INTERFACE_DESCRIPTION* xio_cord_get_interface(void)
+const IO_INTERFACE_DESCRIPTION* cord_socket_get_interface(void)
 {
     return &socket_io_interface;
 }

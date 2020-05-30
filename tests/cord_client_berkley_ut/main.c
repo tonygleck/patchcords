@@ -6,6 +6,6 @@
 int main(void)
 {
     size_t failedTestCount = 0;
-    CTEST_RUN_TEST_SUITE(cord_client_berkley_ut, failedTestCount);
+    CTEST_RUN_TEST_SUITE(cord_socket_berkley_ut, failedTestCount);
     return failedTestCount;
 }

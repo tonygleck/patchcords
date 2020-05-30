@@ -93,9 +93,10 @@ extern "C" {
         (void)send_result;
     }
 
-    static void test_on_accept_conn(void* context, const SOCKETIO_CONFIG* config)
+    static void test_on_accept_conn(void* context, const void* config)
     {
-
+        (void)context;
+        (void)config;
     }
 
 #ifdef __cplusplus

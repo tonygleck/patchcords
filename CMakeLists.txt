@@ -54,7 +54,7 @@ compileTargetAsC99(patchcords)
 
 # Berkley socket library
 set(socket_h_files
-    ./inc/patchcords/cord_client.h
+    ./inc/patchcords/cord_socket_client.h
 )
 set(socket_lib)
 set(dependent_libs)
@@ -82,7 +82,7 @@ if (${enable_tls_lib})
         ./src/cord_client_openssl.c
     )
     set(tls_h_files
-        ./inc/patchcords/cord_client.h
+    ./inc/patchcords/cord_tls_client.h
     )
     add_library(cord_openssl ${tls_c_files} ${tls_h_files})
     target_link_libraries(cord_openssl patchcords lib-util-c ssl crypto)

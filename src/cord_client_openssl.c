@@ -14,7 +14,7 @@
 #include "lib-util-c/crt_extensions.h"
 
 #include "patchcords/patchcord_client.h"
-#include "patchcords/cord_client.h"
+#include "patchcords/cord_tls_client.h"
 
 typedef enum SOCKET_STATE_TAG
 {
@@ -100,7 +100,7 @@ static int write_outgoing_bytes(TLS_INSTANCE* tls_instance, ON_SEND_COMPLETE on_
     return result;
 }
 
-static X509* create_x509_bio(const char* certificate)
+static X509* create_x509_bio(const char* certificate, BIO** out_bio, bool use_aux)
 {
     X509* result;
     BIO* bio;
@@ -111,11 +111,50 @@ static X509* create_x509_bio(const char* certificate)
     }
     else
     {
-        if ((result = PEM_read_bio_X509(bio, NULL, NULL, NULL)) == NULL)
+        if (use_aux)
         {
-            log_error("Failure reading certificate into bio");
+            if ((result = PEM_read_bio_X509_AUX(bio, NULL, NULL, NULL)) == NULL)
+            {
+                log_error("Failure creating private key evp_key");
+            }
         }
-        BIO_free(bio);
+        else
+        {
+            if ((result = PEM_read_bio_X509(bio, NULL, NULL, NULL)) == NULL)
+            {
+                log_error("Failure reading certificate into bio");
+            }
+        }
+        if (result != NULL)
+        {
+            if (out_bio == NULL)
+            {
+                BIO_free(bio);
+            }
+            else
+            {
+                *out_bio = bio;
+            }
+        }
+    }
+    return result;
+}
+
+static EVP_PKEY* create_pkey_object(const char* private_key)
+{
+    EVP_PKEY* result;
+    BIO* bio = BIO_new_mem_buf(private_key, -1);
+    if (bio == NULL)
+    {
+        log_error("Failure loading the certificate file");
+        result = NULL;
+    }
+    else
+    {
+        if ((result = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL)) == NULL)
+        {
+            log_error("Failure creating private key evp_key");
+        }
     }
     return result;
 }
@@ -123,7 +162,53 @@ static X509* create_x509_bio(const char* certificate)
 static int add_client_certificates(TLS_INSTANCE* tls_instance)
 {
     int result;
-    result = 0;
+    EVP_PKEY* evp_key;
+    BIO* bio_cert;
+    X509* x509_cert;
+    // Load the private key
+    if ((evp_key = create_pkey_object(tls_instance->private_key)) == NULL)
+    {
+        log_error("Failure loading the private key");
+        result = __LINE__;
+    }
+    else if ((x509_cert = create_x509_bio(tls_instance->certificate, &bio_cert, true)) == NULL)
+    {
+        log_error("Failure loading the certificate");
+        result = __LINE__;
+    }
+    else
+    {
+        if (SSL_CTX_use_PrivateKey(tls_instance->ssl_ctx, evp_key) <= 0)
+        {
+            log_error("Failure loading the private key");
+            result = __LINE__;
+        }
+        else if (SSL_CTX_use_certificate(tls_instance->ssl_ctx, x509_cert) != 1)
+        {
+            log_error("Failure loading the private key");
+            result = __LINE__;
+        }
+        else
+        {
+            X509* ca_chain;
+            result = 0;
+            // If we could set up our certificate, now proceed to the CA
+            // certificates.
+
+            SSL_CTX_clear_extra_chain_certs(tls_instance->ssl_ctx);
+            while ((ca_chain = PEM_read_bio_X509(bio_cert, NULL, NULL, NULL)) != NULL)
+            {
+                if (SSL_CTX_add_extra_chain_cert(tls_instance->ssl_ctx, ca_chain) != 1)
+                {
+                    log_error("Failure adding certificate chain to stream");
+                    X509_free(ca_chain);
+                    result = __LINE__;
+                    break;
+                }
+            }
+        }
+        EVP_PKEY_free(evp_key);
+    }
     return result;
 }
 
@@ -212,7 +297,7 @@ static void send_tls_handshake(TLS_INSTANCE* tls_instance)
 static int load_certificates(TLS_INSTANCE* tls_instance)
 {
     int result;
-    X509* x509_cert = create_x509_bio(tls_instance->certificate);
+    X509* x509_cert = create_x509_bio(tls_instance->certificate, NULL, false);
     if (x509_cert == NULL)
     {
         log_error("Failure reading certificate into bio");
@@ -228,17 +313,10 @@ static int load_certificates(TLS_INSTANCE* tls_instance)
     else
     {
         EVP_PKEY* evp_key;
-        BIO* bio_key = BIO_new_mem_buf((char*)tls_instance->private_key, -1);
-        if (bio_key == NULL)
+        if ((evp_key = create_pkey_object(tls_instance->private_key)) == NULL)
         {
             log_error("Failure loading the private key");
             result = __LINE__;
-        }
-        else if ((evp_key = PEM_read_bio_PrivateKey(bio_key, NULL, NULL, NULL)) == NULL)
-        {
-            log_error("Failure reading the private key");
-            result = __LINE__;
-            BIO_free(bio_key);
         }
         else
         {
@@ -261,7 +339,6 @@ static int load_certificates(TLS_INSTANCE* tls_instance)
                 result = 0;
             }
             EVP_PKEY_free(evp_key);
-            BIO_free(bio_key);
         }
         X509_free(x509_cert);
     }
@@ -505,41 +582,7 @@ static int create_underlying_socket(TLS_INSTANCE* tls_instance, const TLS_CONFIG
     return result;
 }
 
-static TLS_INSTANCE* create_tls_info(const TLS_CONFIG* config)
-{
-    TLS_INSTANCE* result;
-    if ((result = malloc(sizeof(TLS_INSTANCE))) == NULL)
-    {
-        log_error("Failure allocating tls instance");
-    }
-    else
-    {
-        memset(result, 0, sizeof(TLS_INSTANCE));
-        if (create_underlying_socket(result, config) != 0)
-        {
-            log_error("Failure cloning hostname value");
-            free(result);
-            result = NULL;
-        }
-        else
-        {
-            if (config->socket_config->accepted_socket == NULL)
-            {
-                // Copy the host name
-                if (clone_string(&result->hostname, config->hostname) != 0)
-                {
-                    log_error("Failure cloning hostname value");
-                    result->socket_iface->interface_impl_destroy(result->underlying_socket);
-                    free(result);
-                    result = NULL;
-                }
-            }
-        }
-    }
-    return result;
-}
-
-CORD_HANDLE cord_client_create(const void* parameters, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_ctx, ON_IO_ERROR on_error, void* on_error_ctx)
+CORD_HANDLE cord_tls_create(const void* parameters, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_ctx, ON_IO_ERROR on_error, void* on_error_ctx)
 {
     TLS_INSTANCE* result;
     if (parameters == NULL)
@@ -553,12 +596,27 @@ CORD_HANDLE cord_client_create(const void* parameters, ON_BYTES_RECEIVED on_byte
         result = NULL;
     }
     // Open the underlying socket
+    else if ((result = malloc(sizeof(TLS_INSTANCE))) == NULL)
+    {
+        log_error("Failure allocating tls instance");
+    }
     else
     {
         const TLS_CONFIG* config = (const TLS_CONFIG*)parameters;
-        if ((result = create_tls_info(config)) == NULL)
+
+        memset(result, 0, sizeof(TLS_INSTANCE));
+        if (create_underlying_socket(result, config) != 0)
         {
-            log_error("Failure creating tls information");
+            log_error("Failure cloning hostname value");
+            free(result);
+            result = NULL;
+        }
+        else if (clone_string(&result->hostname, config->hostname) != 0)
+        {
+            log_error("Failure cloning hostname value");
+            result->socket_iface->interface_impl_destroy(result->underlying_socket);
+            free(result);
+            result = NULL;
         }
         else
         {
@@ -567,12 +625,16 @@ CORD_HANDLE cord_client_create(const void* parameters, ON_BYTES_RECEIVED on_byte
             result->on_error = on_error;
             result->on_error_ctx = on_error_ctx;
             result->port = config->port;
+
+            result->certificate = config->client_certificate;
+            result->private_key = config->pkey_certificate;
+            result->server_cert = config->server_certifiate;
         }
     }
     return (CORD_HANDLE)result;
 }
 
-void cord_client_destroy(CORD_HANDLE handle)
+void cord_tls_destroy(CORD_HANDLE handle)
 {
     if (handle != NULL)
     {
@@ -585,7 +647,7 @@ void cord_client_destroy(CORD_HANDLE handle)
     }
 }
 
-int cord_client_open(CORD_HANDLE handle, ON_IO_OPEN_COMPLETE on_open_complete, void* on_open_complete_ctx)
+int cord_tls_open(CORD_HANDLE handle, ON_IO_OPEN_COMPLETE on_open_complete, void* on_open_complete_ctx)
 {
     int result;
     if (handle == NULL)
@@ -617,7 +679,7 @@ int cord_client_open(CORD_HANDLE handle, ON_IO_OPEN_COMPLETE on_open_complete, v
     return result;
 }
 
-int cord_client_listen(CORD_HANDLE handle, ON_INCOMING_CONNECT incoming_conn_cb, void* user_ctx)
+int cord_tls_listen(CORD_HANDLE handle, ON_INCOMING_CONNECT incoming_conn_cb, void* user_ctx)
 {
     uint16_t result;
     if (handle == NULL || incoming_conn_cb == NULL)
@@ -656,7 +718,7 @@ int cord_client_listen(CORD_HANDLE handle, ON_INCOMING_CONNECT incoming_conn_cb,
     return result;
 }
 
-int cord_client_close(CORD_HANDLE handle, ON_IO_CLOSE_COMPLETE on_close_complete, void* callback_ctx)
+int cord_tls_close(CORD_HANDLE handle, ON_IO_CLOSE_COMPLETE on_close_complete, void* callback_ctx)
 {
     int result;
     if (handle == NULL)
@@ -706,7 +768,7 @@ int cord_client_close(CORD_HANDLE handle, ON_IO_CLOSE_COMPLETE on_close_complete
     return result;
 }
 
-int cord_client_send(CORD_HANDLE handle, const void* buffer, size_t size, ON_SEND_COMPLETE on_send_complete, void* callback_context)
+int cord_tls_send(CORD_HANDLE handle, const void* buffer, size_t size, ON_SEND_COMPLETE on_send_complete, void* callback_context)
 {
     int result;
     if (handle == NULL || buffer == NULL)
@@ -741,7 +803,7 @@ int cord_client_send(CORD_HANDLE handle, const void* buffer, size_t size, ON_SEN
     return result;
 }
 
-void cord_client_process_item(CORD_HANDLE handle)
+void cord_tls_process_item(CORD_HANDLE handle)
 {
     if (handle != NULL)
     {
@@ -783,60 +845,7 @@ void cord_client_process_item(CORD_HANDLE handle)
     }
 }
 
-int cord_client_set_client_cert(CORD_HANDLE handle, const char* certificate, const unsigned char* private_key)
-{
-    int result;
-    if (handle == NULL || certificate == NULL || private_key == NULL)
-    {
-        log_error("Invalid parameter handle: %p, certificate: %p, private_key: %p", handle, certificate, private_key);
-        result == __LINE__;
-    }
-    else
-    {
-        TLS_INSTANCE* tls_instance = (TLS_INSTANCE*)handle;
-        if (tls_instance->current_state == IO_STATE_OPEN || tls_instance->current_state == IO_STATE_OPENED || tls_instance->current_state == IO_STATE_HANDSHAKE)
-        {
-            log_error("Invalid state to set certificate");
-            result == __LINE__;
-        }
-        else
-        {
-            TLS_INSTANCE* tls_instance = (TLS_INSTANCE*)handle;
-            tls_instance->certificate = certificate;
-            tls_instance->private_key = private_key;
-            result = 0;
-        }
-    }
-    return result;
-}
-
-int cord_client_set_server_cert(CORD_HANDLE handle, const char* certificate)
-{
-    int result;
-    if (handle == NULL || certificate == NULL)
-    {
-        log_error("Invalid parameter handle: %p, certificate: %p", handle, certificate);
-        result == __LINE__;
-    }
-    else
-    {
-        TLS_INSTANCE* tls_instance = (TLS_INSTANCE*)handle;
-        if (tls_instance->current_state == IO_STATE_OPEN || tls_instance->current_state == IO_STATE_OPENED || tls_instance->current_state == IO_STATE_HANDSHAKE)
-        {
-            log_error("Invalid state to set certificate");
-            result == __LINE__;
-        }
-        else
-        {
-            TLS_INSTANCE* tls_instance = (TLS_INSTANCE*)handle;
-            tls_instance->server_cert = certificate;
-            result = 0;
-        }
-    }
-    return result;
-}
-
-const char* cord_client_query_uri(CORD_HANDLE handle)
+const char* cord_tls_query_uri(CORD_HANDLE handle)
 {
     const char* result;
     if (handle == NULL)
@@ -852,7 +861,7 @@ const char* cord_client_query_uri(CORD_HANDLE handle)
     return result;
 }
 
-uint16_t cord_client_query_port(CORD_HANDLE handle)
+uint16_t cord_tls_query_port(CORD_HANDLE handle)
 {
     uint16_t result;
     if (handle == NULL)
@@ -870,18 +879,18 @@ uint16_t cord_client_query_port(CORD_HANDLE handle)
 
 static const IO_INTERFACE_DESCRIPTION tls_io_interface =
 {
-    cord_client_create,
-    cord_client_destroy,
-    cord_client_open,
-    cord_client_close,
-    cord_client_send,
-    cord_client_process_item,
-    cord_client_query_uri,
-    cord_client_query_port,
-    cord_client_listen
+    cord_tls_create,
+    cord_tls_destroy,
+    cord_tls_open,
+    cord_tls_close,
+    cord_tls_send,
+    cord_tls_process_item,
+    cord_tls_query_uri,
+    cord_tls_query_port,
+    cord_tls_listen
 };
 
-const IO_INTERFACE_DESCRIPTION* xio_cord_get_interface(void)
+const IO_INTERFACE_DESCRIPTION* cord_tls_get_tls_interface(void)
 {
     return &tls_io_interface;
 }

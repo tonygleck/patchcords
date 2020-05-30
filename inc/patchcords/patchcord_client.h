@@ -53,21 +53,13 @@ typedef struct ACCEPT_SOCKET_TAG
     uint16_t port;
 } ACCEPT_SOCKET;
 
-typedef struct SOCKETIO_CONFIG_TAG
-{
-    const char* hostname;
-    uint16_t port;
-    SOCKETIO_ADDRESS_TYPE address_type;
-    void* accepted_socket;
-} SOCKETIO_CONFIG;
-
 typedef void(*ON_BYTES_RECEIVED)(void* context, const unsigned char* buffer, size_t size);
 typedef void(*ON_SEND_COMPLETE)(void* context, IO_SEND_RESULT send_result);
 typedef void(*ON_IO_OPEN_COMPLETE)(void* context, IO_OPEN_RESULT open_result);
 typedef void(*ON_IO_CLOSE_COMPLETE)(void* context);
 typedef void(*ON_IO_ERROR)(void* context, IO_ERROR_RESULT error_result);
 
-typedef void(*ON_INCOMING_CONNECT)(void* context, const SOCKETIO_CONFIG* config);
+typedef void(*ON_INCOMING_CONNECT)(void* context, const void* config);
 
 typedef CORD_HANDLE(*IO_CREATE)(const void* io_create_parameters, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_ctx, ON_IO_ERROR on_io_error, void* on_io_error_ctx);
 typedef void(*IO_DESTROY)(CORD_HANDLE impl_handle);
@@ -91,14 +83,6 @@ typedef struct IO_INTERFACE_DESCRIPTION_TAG
     IO_QUERY_PORT interface_impl_query_port;
     IO_LISTEN interface_impl_listen;
 } IO_INTERFACE_DESCRIPTION;
-
-typedef struct TLS_CONFIG_TAG
-{
-    const char* hostname;
-    uint16_t port;
-    const SOCKETIO_CONFIG* socket_config;
-    const IO_INTERFACE_DESCRIPTION* socket_desc;
-} TLS_CONFIG;
 
 typedef struct PATCHCORD_CALLBACK_INFO_TAG
 {

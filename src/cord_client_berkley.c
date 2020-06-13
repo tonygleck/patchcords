@@ -315,7 +315,7 @@ static int move_data_to_storage(PENDING_SEND_ITEM* pending_item, size_t offset)
         if (offset > 0)
         {
             void* temp_data = malloc(pending_item->data_len - offset);
-            if (temp_data != NULL)
+            if (temp_data == NULL)
             {
                 log_error("Failure reallocating storage data");
                 result = __LINE__;

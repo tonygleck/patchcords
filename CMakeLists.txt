@@ -8,7 +8,7 @@ project(patchcords)
 
 option(patchcords_ut "Include unittest in build" OFF)
 option(patchcords_samples "Include samples in build" OFF)
-option(enable_tls_lib   "Turn on the TLS libraries" ON)
+option(enable_tls_lib "Turn on the TLS libraries" OFF)
 
 if (CMAKE_BUILD_TYPE MATCHES "Debug" AND NOT WIN32)
     set(DEBUG_CONFIG ON)

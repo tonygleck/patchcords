@@ -696,12 +696,12 @@ int cord_socket_send(CORD_HANDLE xio, const void* buffer, size_t size, ON_SEND_C
         // If the current state is open, then just try to send the data
         if (socket_impl->current_state != IO_STATE_OPEN)
         {
-            log_error("Failure sending in incorrect state");
+            log_error("Failure sending incorrect state %d", socket_impl->current_state);
             result = __LINE__;
         }
         else if ((send_item = (PENDING_SEND_ITEM*)malloc(sizeof(PENDING_SEND_ITEM))) == NULL)
         {
-            log_error("Failure allocating malloc");
+            log_error("Failure allocating pending send item");
             result = __LINE__;
         }
         else

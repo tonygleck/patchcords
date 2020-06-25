@@ -22,15 +22,15 @@
 #include "patchcords/patchcord_client.h"
 #include "patchcords/cord_socket_client.h"
 
-static const char* TEST_HOSTNAME = "localhost";
-static uint32_t TEST_32_BYTES_SEND[32];
-static uint32_t TEST_128_BYTES_SEND[128];
-static uint32_t TEST_1024_BYTES_SEND[1024];
-
 #define SEND_BYTE_SIZE_32           32
 #define SEND_BYTE_SIZE_128          128
 #define SEND_BYTE_SIZE_1024         1024
 #define OPERATION_TIMEOUT_SEC       30
+
+static const char* TEST_HOSTNAME = "localhost";
+static uint32_t TEST_32_BYTES_SEND[SEND_BYTE_SIZE_32];
+static uint32_t TEST_128_BYTES_SEND[SEND_BYTE_SIZE_128];
+static uint32_t TEST_1024_BYTES_SEND[SEND_BYTE_SIZE_1024];
 
 typedef enum CLIENT_E2E_STATE_TAG
 {
@@ -215,10 +215,10 @@ static void test_socket_sending(uint16_t port, uint32_t* send_data, uint32_t byt
 
     // Create the socket
     result = patchcord_client_listen(listener, on_socket_connect_cb, &e2e_data);
-    CTEST_ASSERT_ARE_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(int, 0, result, "Unable to call patchcord_client_listen");
 
     result = alarm_timer_start(&e2e_data.timer, OPERATION_TIMEOUT_SEC);
-    CTEST_ASSERT_ARE_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(int, 0, result, "Unable to start timer");
 
     do
     {
@@ -240,7 +240,7 @@ static void test_socket_sending(uint16_t port, uint32_t* send_data, uint32_t byt
             case CLIENT_STATE_SENDING:
                 log_debug("Sending %d bytes of data", byte_len);
                 result = patchcord_client_send(sender, send_data, byte_len, on_socket_send_complete, &e2e_data);
-                CTEST_ASSERT_ARE_EQUAL(int, 0, result);
+                CTEST_ASSERT_ARE_EQUAL(int, 0, result, "Failure to call patchcord_client_send");
                 set_current_state(&e2e_data, CLIENT_STATE_RECEIVING);
                 break;
             case CLIENT_STATE_RECEIVING:

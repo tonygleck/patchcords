@@ -497,6 +497,7 @@ CTEST_FUNCTION(cord_socket_destroy_succeed)
     STRICT_EXPECTED_CALL(free(IGNORED_ARG));
     STRICT_EXPECTED_CALL(item_list_destroy(IGNORED_ARG));
     STRICT_EXPECTED_CALL(free(IGNORED_ARG));
+    STRICT_EXPECTED_CALL(WSACleanup());
 
     // act
     cord_socket_destroy(handle);

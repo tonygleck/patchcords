@@ -75,12 +75,18 @@ typedef struct PENDING_SEND_ITEM_TAG
     size_t data_len;
     ON_SEND_COMPLETE on_send_complete;
     void* send_ctx;
+    void* cache_data;
 } PENDING_SEND_ITEM;
 
 static void on_pending_list_item_destroy(void* user_ctx, void* remove_item)
 {
     (void)user_ctx;
     PENDING_SEND_ITEM* pending_item = (PENDING_SEND_ITEM*)remove_item;
+    if (pending_item->cache_data != NULL)
+    {
+        free(pending_item->cache_data);
+        pending_item->cache_data = NULL;
+    }
     free(pending_item);
 }
 
@@ -159,7 +165,10 @@ static int open_socket(SOCKET_INSTANCE* socket_impl)
     }
     else
     {
-        /*size_t hostname_len = strlen(socket_impl->hostname);
+        log_error("Domain Sockets not yet supported");
+        result = __LINE__;
+#if 0
+        size_t hostname_len = strlen(socket_impl->hostname);
         if (hostname_len + 1 > sizeof(socket_addr.sun_path))
         {
             log_error("Hostname %s is too long for a unix socket (max len = %lu)", socket_impl->hostname, (unsigned long)sizeof(socket_addr.sun_path));
@@ -183,6 +192,7 @@ static int open_socket(SOCKET_INSTANCE* socket_impl)
         }*/
         connect_addr_len = 0;
         result = 0;
+#endif
     }
 
     if (result == 0)
@@ -253,6 +263,51 @@ static int construct_socket_object(SOCKET_INSTANCE* socket_impl)
     return result;
 }
 
+static int move_data_to_storage(PENDING_SEND_ITEM* pending_item, size_t offset)
+{
+    int result;
+    if (pending_item->cache_data == NULL)
+    {
+        if ((pending_item->cache_data = malloc(pending_item->data_len - offset)) == NULL)
+        {
+            log_error("Failure allocating storage data");
+            result = __LINE__;
+        }
+        else
+        {
+            memcpy(pending_item->cache_data, pending_item->send_data + offset, pending_item->data_len - offset);
+            pending_item->data_len -= offset;
+            pending_item->send_data = NULL;
+            result = 0;
+        }
+    }
+    else
+    {
+        if (offset > 0)
+        {
+            void* temp_data = malloc(pending_item->data_len - offset);
+            if (temp_data == NULL)
+            {
+                log_error("Failure reallocating storage data");
+                result = __LINE__;
+            }
+            else
+            {
+                memcpy(temp_data, pending_item->cache_data, pending_item->data_len - offset);
+                free(pending_item->cache_data);
+                pending_item->cache_data = temp_data;
+                pending_item->data_len -= offset;
+                result = 0;
+            }
+        }
+        else
+        {
+            result = 0;
+        }
+    }
+    return result;
+}
+
 static int recv_socket_data(SOCKET_INSTANCE* socket_impl)
 {
     int result;
@@ -277,8 +332,11 @@ static int recv_socket_data(SOCKET_INSTANCE* socket_impl)
         else
         {
             int last_sock_error = WSAGetLastError();
-            log_error("Failure receiving data on the socket, errno: %d (%s)", last_sock_error, "Failure");
-            indicate_error(socket_impl, IO_ERROR_GENERAL);
+            if (WSAEWOULDBLOCK != last_sock_error)
+            {
+                log_error("Failure receiving data on the socket, last error: %d (%s)", last_sock_error, "Failure");
+                indicate_error(socket_impl, IO_ERROR_GENERAL);
+            }
             result = __LINE__;
         }
     }
@@ -289,14 +347,37 @@ static SOCKET_SEND_RESULT send_socket_data(SOCKET_INSTANCE* socket_impl, PENDING
 {
     SOCKET_SEND_RESULT result;
 
-    // Send the current item
-    int send_res = send(socket_impl->socket, pending_item->send_data, (int)pending_item->data_len, 0);
+    // Send the current item.  If the current item is NULL
+    // then the cached item needs to be sent
+    const void* data_to_send = pending_item->send_data;
+    if (data_to_send == NULL)
+    {
+        data_to_send = pending_item->cache_data;
+    }
+    int send_res = send(socket_impl->socket, data_to_send, (int)pending_item->data_len, 0);
     if (send_res  != (int)pending_item->data_len)
     {
-        int last_sock_error = WSAGetLastError();
         if (send_res == SOCKET_ERROR)
         {
-            if (last_sock_error != WSAEWOULDBLOCK)
+            int last_sock_error = WSAGetLastError();
+            if (last_sock_error == WSAEWOULDBLOCK)
+            {
+                if (move_data_to_storage(pending_item, 0) != 0)
+                {
+                    indicate_error(socket_impl, IO_ERROR_MEMORY);
+                    if (pending_item->on_send_complete != NULL)
+                    {
+                        pending_item->on_send_complete(pending_item->send_ctx, IO_SEND_ERROR);
+                    }
+                    log_error("Failure moving data to storage");
+                    result = SEND_RESULT_ERROR;
+                }
+                else
+                {
+                    result = SEND_RESULT_WAIT;
+                }
+            }
+            else
             {
                 // Failure happened
                 if (pending_item->on_send_complete != NULL)
@@ -306,37 +387,17 @@ static SOCKET_SEND_RESULT send_socket_data(SOCKET_INSTANCE* socket_impl, PENDING
                 log_error("Failure sending data on the socket, errno: %d (%s)", last_sock_error, "Failure"); // last_sock_error
                 result = SEND_RESULT_ERROR;
             }
-            else
-            {
-                // Queue it up for the next call
-                if (item_list_add_item(socket_impl->pending_list, pending_item) != 0)
-                {
-                    if (pending_item->on_send_complete != NULL)
-                    {
-                        pending_item->on_send_complete(pending_item->send_ctx, IO_SEND_ERROR);
-                    }
-                    log_error("Failure allocating malloc");
-                    result = SEND_RESULT_ERROR;
-                }
-                else
-                {
-                    result = SEND_RESULT_WAIT;
-                }
-            }
         }
         else
         {
             // Partial send
-            pending_item->send_data += send_res;
-            pending_item->data_len -= send_res;
-            if (item_list_add_item(socket_impl->pending_list, pending_item) != 0)
+            if (move_data_to_storage(pending_item, send_res) != 0)
             {
                 indicate_error(socket_impl, IO_ERROR_MEMORY);
-
-                // if (pending_item->on_send_complete != NULL)
-                // {
-                //     pending_item->on_send_complete(pending_item->send_ctx, IO_SEND_ERROR);
-                // }
+                if (pending_item->on_send_complete != NULL)
+                {
+                    pending_item->on_send_complete(pending_item->send_ctx, IO_SEND_ERROR);
+                }
                 log_error("Failure allocating malloc");
                 result = SEND_RESULT_ERROR;
             }
@@ -387,6 +448,49 @@ static SOCKET_SEND_RESULT send_socket_cached_data(SOCKET_INSTANCE* socket_impl)
     return result;
 }
 
+static SOCKET_INSTANCE* create_socket_info(const SOCKETIO_CONFIG* config)
+{
+    SOCKET_INSTANCE* result;
+    if ((result = malloc(sizeof(SOCKET_INSTANCE))) == NULL)
+    {
+        log_error("Failure allocating socket instance");
+    }
+    else
+    {
+        memset(result, 0, sizeof(SOCKET_INSTANCE));
+        result->port = config->port;
+        result->address_type = config->address_type;
+
+        // Copy the host name
+        if ((result->pending_list = item_list_create(on_pending_list_item_destroy, result)) == NULL)
+        {
+            log_error("Failure creating pending list item");
+            free(result);
+            result = NULL;
+        }
+        else if (config->hostname != NULL && clone_string(&result->hostname, config->hostname) != 0)
+        {
+            log_error("Failure cloning hostname value");
+            item_list_destroy(result->pending_list);
+            free(result);
+            result = NULL;
+        }
+        else
+        {
+            if (config->accepted_socket != NULL)
+            {
+                result->socket = (int)*((int*)config->accepted_socket);
+                result->current_state = IO_STATE_OPEN;
+            }
+            else
+            {
+                result->socket = INVALID_SOCKET;
+            }
+        }
+    }
+    return result;
+}
+
 CORD_HANDLE cord_socket_create(const void* parameters, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_context, ON_IO_ERROR on_io_error, void* on_io_error_context)
 {
     SOCKET_INSTANCE* result;
@@ -402,38 +506,16 @@ CORD_HANDLE cord_socket_create(const void* parameters, ON_BYTES_RECEIVED on_byte
         log_error("WSAStartup failed with error: %d", res_value);
         result = NULL;
     }
-    else if ((result = malloc(sizeof(SOCKET_INSTANCE))) == NULL)
+    else if ((result = create_socket_info((const SOCKETIO_CONFIG*)parameters)) == NULL)
     {
-        log_error("Failure allocating socket instance");
+        log_error("Failure creating socket info");
     }
     else
     {
-        const SOCKETIO_CONFIG* config = (const SOCKETIO_CONFIG*)parameters;
-        memset(result, 0, sizeof(SOCKET_INSTANCE));
-        result->port = config->port;
-        result->address_type = config->address_type;
-
-        // Copy the host name
-        if ((result->pending_list = item_list_create(on_pending_list_item_destroy, result)) == NULL)
-        {
-            log_error("Failure creating pending list item");
-            free(result);
-            result = NULL;
-        }
-        else if (clone_string(&result->hostname, config->hostname) != 0)
-        {
-            log_error("Failure cloning hostname value");
-            item_list_destroy(result->pending_list);
-            free(result);
-            result = NULL;
-        }
-        else
-        {
-            result->on_bytes_received = on_bytes_received;
-            result->on_bytes_received_context = on_bytes_received_context;
-            result->on_io_error = on_io_error;
-            result->on_io_error_context = on_io_error_context;
-        }
+        result->on_bytes_received = on_bytes_received;
+        result->on_bytes_received_context = on_bytes_received_context;
+        result->on_io_error = on_io_error;
+        result->on_io_error_context = on_io_error_context;
     }
     return (CORD_HANDLE)result;
 }
@@ -443,7 +525,10 @@ void cord_socket_destroy(CORD_HANDLE xio)
     if (xio != NULL)
     {
         SOCKET_INSTANCE* socket_impl = (SOCKET_INSTANCE*)xio;
-        free(socket_impl->hostname);
+        if (socket_impl->hostname != NULL)
+        {
+            free(socket_impl->hostname);
+        }
         item_list_destroy(socket_impl->pending_list);
         free(socket_impl);
         WSACleanup();
@@ -517,7 +602,7 @@ int cord_socket_listen(CORD_HANDLE xio, ON_INCOMING_CONNECT incoming_conn_cb, vo
             result = __LINE__;
         }
         else
-        {cord_socket_
+        {
             struct sockaddr_in serv_addr = { 0 };
             serv_addr.sin_family = AF_INET;
             serv_addr.sin_addr.s_addr = INADDR_ANY;

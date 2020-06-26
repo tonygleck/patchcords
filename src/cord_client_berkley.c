@@ -151,7 +151,6 @@ static int open_socket(SOCKET_INSTANCE* socket_impl)
     int result;
     int error_value;
     struct addrinfo addr_info_hint;
-    //struct sockaddr_un socket_addr;
     struct sockaddr* connect_addr = NULL;
     socklen_t connect_addr_len;
     struct addrinfo* addr_info_ip = NULL;
@@ -193,8 +192,8 @@ static int open_socket(SOCKET_INSTANCE* socket_impl)
     }
     else
     {
-            log_error("Domain Sockets not supported");
-            result = __LINE__;
+        log_error("Domain Sockets not yet supported");
+        result = __LINE__;
 #if 0
         size_t hostname_len = strlen(socket_impl->hostname);
         if (hostname_len + 1 > sizeof(socket_addr.sun_path))
@@ -393,7 +392,6 @@ static SOCKET_SEND_RESULT send_socket_data(SOCKET_INSTANCE* socket_impl, PENDING
         {
             if (errno == EAGAIN)
             {
-                // Need to copy the data here
                 if (move_data_to_storage(pending_item, 0) != 0)
                 {
                     indicate_error(socket_impl, IO_ERROR_MEMORY);

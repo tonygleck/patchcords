@@ -14,7 +14,7 @@ mkdir -p $build_dir
 mkdir -p $coverage_dir
 pushd $build_dir
 
-cmake -Dpatchcords_ut:BOOL=ON -DCMAKE_BUILD_TYPE=Debug ../..
+cmake -Dpatchcords_ut:BOOL=ON -Denable_tls_lib:BOOL=ON -DCMAKE_BUILD_TYPE=Debug ../..
 make -j
 ctest -C "debug" -V -T memcheck
 

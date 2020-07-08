@@ -40,7 +40,7 @@ PATCH_INSTANCE_HANDLE patchcord_client_create(const IO_INTERFACE_DESCRIPTION* io
         if ((result = (PATCH_INSTANCE*)malloc(sizeof(PATCH_INSTANCE))) != NULL)
         {
             result->io_interface_description = io_interface_description;
-            if ((result->concrete_xio_handle  = result->io_interface_description->interface_impl_create(parameters, client_cb->on_bytes_received, client_cb->on_bytes_received_ctx, client_cb->on_io_error, client_cb->on_io_error_ctx)) == NULL)
+            if ((result->concrete_xio_handle  = result->io_interface_description->interface_impl_create(parameters, client_cb)) == NULL)
             {
                 log_error("Failure calling interface create");
                 free(result);

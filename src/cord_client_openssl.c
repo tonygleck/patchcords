@@ -555,6 +555,7 @@ static void on_socket_error(void* ctx, IO_ERROR_RESULT error_result)
 static int create_underlying_socket(TLS_INSTANCE* tls_instance, const TLS_CONFIG* config)
 {
     int result;
+    PATCHCORD_CALLBACK_INFO client_cb = { on_socket_bytes_recv, tls_instance, on_socket_error, tls_instance, NULL, NULL };
     if ((tls_instance->socket_iface = config->socket_desc) == NULL ||
         tls_instance->socket_iface->interface_impl_create == NULL ||
         tls_instance->socket_iface->interface_impl_destroy == NULL ||
@@ -570,7 +571,7 @@ static int create_underlying_socket(TLS_INSTANCE* tls_instance, const TLS_CONFIG
         log_error("Socket Interface functions are invalid");
         result = __LINE__;
     }
-    else if ((tls_instance->underlying_socket = tls_instance->socket_iface->interface_impl_create(config->socket_config, on_socket_bytes_recv, tls_instance, on_socket_error, tls_instance)) == NULL)
+    else if ((tls_instance->underlying_socket = tls_instance->socket_iface->interface_impl_create(config->socket_config, &client_cb)) == NULL)
     {
         log_error("Failure creating underlying socket");
         result = __LINE__;

@@ -358,7 +358,14 @@ static int recv_socket_data(SOCKET_INSTANCE* socket_impl)
         }
         else if (recv_res == 0)
         {
-            indicate_error(socket_impl, IO_ERROR_SERVER_DISCONN);
+            if (socket_impl->on_client_close != NULL)
+            {
+                socket_impl->on_client_close(socket_impl->on_close_ctx);
+            }
+            else
+            {
+                indicate_error(socket_impl, IO_ERROR_ENDPOINT_DISCONN);
+            }
             result = __LINE__;
         }
         else if (recv_res < 0 && errno != EAGAIN)
@@ -537,10 +544,10 @@ CORD_HANDLE cord_socket_create(const void* parameters, const PATCHCORD_CALLBACK_
     }
     else
     {
-        result->on_bytes_received = on_bytes_received;
-        result->on_bytes_received_context = on_bytes_received_context;
-        result->on_io_error = on_io_error;
-        result->on_io_error_context = on_io_error_context;
+        result->on_bytes_received = client_cb->on_bytes_received;
+        result->on_bytes_received_context = client_cb->on_bytes_received_ctx;
+        result->on_io_error = client_cb->on_io_error;
+        result->on_io_error_context = client_cb->on_io_error_ctx;
         result->on_client_close = client_cb->on_client_close;
         result->on_close_ctx = client_cb->on_close_ctx;
     }

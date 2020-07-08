@@ -988,8 +988,8 @@ CTEST_FUNCTION(cord_socket_send_partial_send_malloc_fail)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
-    CORD_HANDLE handle = cord_socket_create(&config, test_on_bytes_recv, TEST_USER_CONTEXT_VALUE, test_on_error, TEST_USER_CONTEXT_VALUE);
+    PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, TEST_USER_CONTEXT_VALUE, test_on_error, TEST_USER_CONTEXT_VALUE, NULL, NULL };
+    CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
     (void)cord_socket_open(handle, test_on_open_complete, NULL);
     cord_socket_process_item(handle);
     umock_c_reset_all_calls();
@@ -1023,7 +1023,7 @@ CTEST_FUNCTION(cord_socket_send_partial_send_fail)
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
     PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
-    CORD_HANDLE handle = cord_socket_create(&config, test_on_bytes_recv, TEST_USER_CONTEXT_VALUE, test_on_error, TEST_USER_CONTEXT_VALUE);
+    CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
     (void)cord_socket_open(handle, test_on_open_complete, TEST_USER_CONTEXT_VALUE);
     cord_socket_process_item(handle);
     umock_c_reset_all_calls();
@@ -1325,7 +1325,7 @@ CTEST_FUNCTION(cord_socket_process_item_listen_success)
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
     PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
-    CORD_HANDLE handle = cord_socket_create(&config, test_on_bytes_recv, TEST_USER_CONTEXT_VALUE, test_on_error, TEST_USER_CONTEXT_VALUE);
+    CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
     (void)cord_socket_listen(handle, test_on_accept_conn, NULL);
     umock_c_reset_all_calls();
 
@@ -1402,7 +1402,7 @@ CTEST_FUNCTION(cord_socket_query_port_success)
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
     PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
-    CORD_HANDLE handle = cord_socket_create(&config, test_on_bytes_recv, TEST_USER_CONTEXT_VALUE, test_on_error, TEST_USER_CONTEXT_VALUE);
+    CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
     umock_c_reset_all_calls();
 
     // act

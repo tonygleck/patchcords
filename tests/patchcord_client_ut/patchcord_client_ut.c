@@ -34,7 +34,7 @@ static void my_mem_shim_free(void* ptr)
 #include "umock_c/umock_c_prod.h"
 #include "lib-util-c/sys_debug_shim.h"
 
-MOCKABLE_FUNCTION(, CORD_HANDLE, test_xio_create, const void*, xio_create_parameters, ON_BYTES_RECEIVED, on_bytes_received, void*, on_bytes_received_context, ON_IO_ERROR, on_io_error, void*, on_io_error_context);
+MOCKABLE_FUNCTION(, CORD_HANDLE, test_xio_create, const void*, xio_create_parameters, const PATCHCORD_CALLBACK_INFO*, client_cb);
 MOCKABLE_FUNCTION(, void, test_xio_destroy, CORD_HANDLE, handle);
 MOCKABLE_FUNCTION(, int, test_xio_open, CORD_HANDLE, handle, ON_IO_OPEN_COMPLETE, on_io_open_complete, void*, on_io_open_complete_context);
 MOCKABLE_FUNCTION(, int, test_xio_close, CORD_HANDLE, handle, ON_IO_CLOSE_COMPLETE, on_io_close_complete, void*, callback_context);
@@ -53,9 +53,10 @@ static size_t TEST_SEND_BUFFER_LEN = 16;
 #ifdef __cplusplus
 extern "C" {
 #endif
-    CORD_HANDLE my_test_xio_create(const void* xio_create_parameters, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_context, ON_IO_ERROR on_io_error, void* on_io_error_context)
+    CORD_HANDLE my_test_xio_create(const void* xio_create_parameters, const PATCHCORD_CALLBACK_INFO* client_cb)
     {
         (void)xio_create_parameters;
+        (void)client_cb;
         return (CORD_HANDLE)my_mem_shim_malloc(1);
     }
 

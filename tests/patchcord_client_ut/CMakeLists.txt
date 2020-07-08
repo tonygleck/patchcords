@@ -18,4 +18,4 @@ set(${theseTestsName}_c_files
 set(${theseTestsName}_h_files
 )
 
-build_test_project(${theseTestsName} "tests/lib_utils_tests")
+build_test_project(${theseTestsName} "tests/patchcord_tests")

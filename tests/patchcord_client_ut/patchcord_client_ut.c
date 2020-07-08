@@ -173,7 +173,7 @@ CTEST_FUNCTION(xio_create_succeed)
     client_callbacks.on_io_error = test_on_io_error;
 
     STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
-    STRICT_EXPECTED_CALL(test_xio_create(&parameters, test_on_bytes_received, NULL, test_on_io_error, NULL));
+    STRICT_EXPECTED_CALL(test_xio_create(&parameters, IGNORED_ARG));
 
     // act
     PATCH_INSTANCE_HANDLE handle = patchcord_client_create(&io_interface_description, &parameters, &client_callbacks);
@@ -198,7 +198,7 @@ CTEST_FUNCTION(xio_create_fail)
     CTEST_ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
 
     STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
-    STRICT_EXPECTED_CALL(test_xio_create(&parameters, test_on_bytes_received, NULL, test_on_io_error, NULL));
+    STRICT_EXPECTED_CALL(test_xio_create(&parameters, IGNORED_ARG));
 
     umock_c_negative_tests_snapshot();
 

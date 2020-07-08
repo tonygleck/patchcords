@@ -40,7 +40,6 @@ MOCKABLE_FUNCTION(, void, test_on_open_complete, void*, context, IO_OPEN_RESULT,
 MOCKABLE_FUNCTION(, void, test_on_close_complete, void*, context);
 MOCKABLE_FUNCTION(, void, test_on_error, void*, context, IO_ERROR_RESULT, error_result);
 MOCKABLE_FUNCTION(, void, test_on_accept_conn, void*, context, const void*, config);
-MOCKABLE_FUNCTION(, void, test_on_error, void*, context, IO_ERROR_RESULT, error_result);
 MOCKABLE_FUNCTION(, void, test_on_client_close, void*, context);
 
 

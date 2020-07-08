@@ -326,7 +326,7 @@ static int recv_socket_data(SOCKET_INSTANCE* socket_impl)
         }
         else if (recv_res == 0)
         {
-            indicate_error(socket_impl, IO_ERROR_SERVER_DISCONN);
+            indicate_error(socket_impl, IO_ENDPOINT_DISCONNECTED);
             result = __LINE__;
         }
         else

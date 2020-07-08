@@ -356,7 +356,7 @@ static int recv_socket_data(SOCKET_INSTANCE* socket_impl)
         }
         else if (recv_res == 0)
         {
-            indicate_error(socket_impl, IO_ERROR_SERVER_DISCONN);
+            indicate_error(socket_impl, IO_ERROR_ENDPOINT_DISCONN);
             result = __LINE__;
         }
         else if (recv_res < 0 && errno != EAGAIN)

@@ -1217,7 +1217,7 @@ CTEST_FUNCTION(cord_socket_process_item_recv_fail)
 
     STRICT_EXPECTED_CALL(item_list_get_front(IGNORED_ARG));
     STRICT_EXPECTED_CALL(recv(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG)).SetReturn(0);
-    STRICT_EXPECTED_CALL(test_on_error(IGNORED_ARG, IO_ERROR_SERVER_DISCONN));
+    STRICT_EXPECTED_CALL(test_on_error(IGNORED_ARG, IO_ENDPOINT_DISCONNECTED));
 
     // act
     cord_socket_process_item(handle);

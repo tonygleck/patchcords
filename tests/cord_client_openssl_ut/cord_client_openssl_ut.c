@@ -44,6 +44,8 @@ MOCKABLE_FUNCTION(, void, test_on_close_complete, void*, context);
 MOCKABLE_FUNCTION(, void, test_on_error, void*, context, IO_ERROR_RESULT, error_result);
 MOCKABLE_FUNCTION(, void, test_on_accept_conn, void*, context, const void*, config);
 
+MOCKABLE_FUNCTION(, int, interface_socket_close, CORD_HANDLE, impl_handle, ON_IO_CLOSE_COMPLETE, on_io_close_complete, void*, callback_context);
+
 // OpenSSL functions
 #if OPENSSL_VERSION_NUMBER >= 0x1010007fL
 MOCKABLE_FUNCTION(, BIO*, BIO_new, const BIO_METHOD*, type);
@@ -257,7 +259,7 @@ const IO_INTERFACE_DESCRIPTION socket_desc =
     socket_create,
     socket_destroy,
     socket_open,
-    socket_close,
+    interface_socket_close,
     socket_send,
     socket_process_item,
     socket_query_uri,
@@ -283,6 +285,7 @@ CTEST_SUITE_INITIALIZE()
     REGISTER_UMOCK_ALIAS_TYPE(IO_ERROR_RESULT, int);
     REGISTER_UMOCK_ALIAS_TYPE(ssize_t, long);
     REGISTER_UMOCK_ALIAS_TYPE(PATCH_INSTANCE_HANDLE, void*);
+    REGISTER_UMOCK_ALIAS_TYPE(ON_IO_CLOSE_COMPLETE, void*);
     REGISTER_UMOCK_ALIAS_TYPE(SSL_verify_cb, void*);
 
     REGISTER_GLOBAL_MOCK_HOOK(mem_shim_malloc, my_mem_shim_malloc);
@@ -369,6 +372,26 @@ static void setup_cord_tls_send_mocks(void)
     STRICT_EXPECTED_CALL(malloc(g_buffer_len));
     STRICT_EXPECTED_CALL(BIO_read(IGNORED_ARG, IGNORED_ARG, g_buffer_len)).SetReturn(g_buffer_len);
     STRICT_EXPECTED_CALL(free(IGNORED_ARG));
+}
+
+CTEST_FUNCTION(cord_tls_create_parameters_NULL_fail)
+{
+    // arrange
+    TLS_CONFIG tls_config = {0};
+    tls_config.hostname = TEST_HOSTNAME;
+    tls_config.port = TEST_PORT_VALUE;
+    tls_config.socket_config = TEST_SOCKET_CONFIG;
+    tls_config.socket_desc = &socket_desc;
+
+    // act
+    CORD_HANDLE handle = cord_tls_create(NULL, test_on_bytes_recv, NULL, test_on_error, NULL);
+
+    // assert
+    CTEST_ASSERT_IS_NULL(handle);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    cord_tls_destroy(handle);
 }
 
 CTEST_FUNCTION(cord_tls_create_succeed)
@@ -614,6 +637,77 @@ CTEST_FUNCTION(cord_tls_open_process_call_succeed)
     cord_tls_close(handle, NULL, NULL);
     cord_tls_destroy(handle);
 }
+
+CTEST_FUNCTION(cord_tls_close_handle_NULL_fail)
+{
+    // arrange
+
+    // act
+    int result = cord_tls_close(NULL, test_on_close_complete, NULL);
+
+    // assert
+    CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+}
+
+CTEST_FUNCTION(cord_tls_close_succeed)
+{
+    // arrange
+    CORD_HANDLE handle = initialize_handle();
+    (void)cord_tls_open(handle, test_on_open_complete, NULL);
+    cord_tls_process_item(handle); // Call to open
+    g_on_open_complete(g_on_open_ctx, IO_OPEN_OK); // start the handshake
+    cord_tls_process_item(handle); // Call to handshake
+    umock_c_reset_all_calls();
+
+    //STRICT_EXPECTED_CALL(test_on_close_complete(IGNORED_ARG));
+    STRICT_EXPECTED_CALL(interface_socket_close(IGNORED_ARG, IGNORED_ARG, NULL));
+    STRICT_EXPECTED_CALL(SSL_free(IGNORED_ARG));
+    STRICT_EXPECTED_CALL(BIO_free(IGNORED_ARG));
+    STRICT_EXPECTED_CALL(BIO_free(IGNORED_ARG));
+    STRICT_EXPECTED_CALL(SSL_CTX_free(IGNORED_ARG));
+
+    // act
+    int result = cord_tls_close(handle, test_on_close_complete, NULL);
+
+    // assert
+    CTEST_ASSERT_ARE_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    cord_tls_destroy(handle);
+}
+
+CTEST_FUNCTION(cord_tls_close_interface_close_fail)
+{
+    // arrange
+    CORD_HANDLE handle = initialize_handle();
+    (void)cord_tls_open(handle, test_on_open_complete, NULL);
+    cord_tls_process_item(handle); // Call to open
+    g_on_open_complete(g_on_open_ctx, IO_OPEN_OK); // start the handshake
+    cord_tls_process_item(handle); // Call to handshake
+    umock_c_reset_all_calls();
+
+    //STRICT_EXPECTED_CALL(test_on_close_complete(IGNORED_ARG));
+    STRICT_EXPECTED_CALL(interface_socket_close(IGNORED_ARG, test_on_close_complete, NULL)).SetReturn(__LINE__);
+    STRICT_EXPECTED_CALL(SSL_free(IGNORED_ARG));
+    STRICT_EXPECTED_CALL(BIO_free(IGNORED_ARG));
+    STRICT_EXPECTED_CALL(BIO_free(IGNORED_ARG));
+    STRICT_EXPECTED_CALL(SSL_CTX_free(IGNORED_ARG));
+
+    // act
+    int result = cord_tls_close(handle, test_on_close_complete, NULL);
+
+    // assert
+    CTEST_ASSERT_ARE_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    cord_tls_destroy(handle);
+}
+
 
 CTEST_FUNCTION(cord_tls_send_handle_NULL_fail)
 {

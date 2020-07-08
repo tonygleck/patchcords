@@ -747,22 +747,22 @@ int cord_tls_close(CORD_HANDLE handle, ON_IO_CLOSE_COMPLETE on_close_complete, v
 
             if (tls_instance->socket_iface->interface_impl_close(tls_instance->underlying_socket, on_socket_close_complete, tls_instance) != 0)
             {
-                log_error("Failure attempting to close socket");
-                result = __LINE__;
-                tls_instance->current_state = IO_STATE_ERROR;
+                log_warning("Failure attempting to close socket");
+                tls_instance->current_state = IO_STATE_CLOSED;
             }
             else
             {
                 tls_instance->current_state = IO_STATE_CLOSING;
-                SSL_free(tls_instance->ssl_object);
-                (void)BIO_free(tls_instance->input_bio);
-                (void)BIO_free(tls_instance->output_bio);
-                if (tls_instance->ssl_ctx != NULL)
-                {
-                    SSL_CTX_free(tls_instance->ssl_ctx);
-                }
-                result = 0;
             }
+
+            SSL_free(tls_instance->ssl_object);
+            (void)BIO_free(tls_instance->input_bio);
+            (void)BIO_free(tls_instance->output_bio);
+            if (tls_instance->ssl_ctx != NULL)
+            {
+                SSL_CTX_free(tls_instance->ssl_ctx);
+            }
+            result = 0;
         }
     }
     return result;

@@ -37,7 +37,7 @@ typedef enum IO_ERROR_RESULT_TAG
     IO_ERROR_OK,
     IO_ERROR_GENERAL,
     IO_ERROR_MEMORY,
-    IO_ERROR_SERVER_DISCONN
+    IO_ERROR_ENDPOINT_DISCONN
 } IO_ERROR_RESULT;
 
 typedef enum SOCKETIO_ADDRESS_TYPE_TAG
@@ -58,6 +58,7 @@ typedef void(*ON_SEND_COMPLETE)(void* context, IO_SEND_RESULT send_result);
 typedef void(*ON_IO_OPEN_COMPLETE)(void* context, IO_OPEN_RESULT open_result);
 typedef void(*ON_IO_CLOSE_COMPLETE)(void* context);
 typedef void(*ON_IO_ERROR)(void* context, IO_ERROR_RESULT error_result);
+typedef void(*ON_CLIENT_CLOSED)(void* context);
 
 typedef void(*ON_INCOMING_CONNECT)(void* context, const void* config);
 
@@ -90,6 +91,8 @@ typedef struct PATCHCORD_CALLBACK_INFO_TAG
     void* on_bytes_received_ctx;
     ON_IO_ERROR on_io_error;
     void* on_io_error_ctx;
+    ON_CLIENT_CLOSED on_client_closed;
+    void* client_close_ctx;
 } PATCHCORD_CALLBACK_INFO;
 
 MOCKABLE_FUNCTION(, PATCH_INSTANCE_HANDLE, patchcord_client_create, const IO_INTERFACE_DESCRIPTION*, io_interface_description, const void*, parameters, const PATCHCORD_CALLBACK_INFO*, client_cb);

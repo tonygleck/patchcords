@@ -710,7 +710,7 @@ CTEST_FUNCTION(cord_socket_close_success)
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
     PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
-    CORD_HANDLE handle = cord_socket_create(&config, test_on_bytes_recv, NULL, test_on_error, TEST_USER_CONTEXT_VALUE);
+    CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
     (void)cord_socket_open(handle, test_on_open_complete, TEST_USER_CONTEXT_VALUE);
     umock_c_reset_all_calls();
 
@@ -751,8 +751,8 @@ CTEST_FUNCTION(cord_socket_send_not_open_fail)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
-    PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
-    CORD_HANDLE handle = cord_socket_create(&config, test_on_bytes_recv, NULL, test_on_error, TEST_USER_CONTEXT_VALUE);
+    PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, TEST_USER_CONTEXT_VALUE, NULL, NULL };
+    CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
     umock_c_reset_all_calls();
 
     // act

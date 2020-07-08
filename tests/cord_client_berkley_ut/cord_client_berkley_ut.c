@@ -40,6 +40,9 @@ MOCKABLE_FUNCTION(, void, test_on_open_complete, void*, context, IO_OPEN_RESULT,
 MOCKABLE_FUNCTION(, void, test_on_close_complete, void*, context);
 MOCKABLE_FUNCTION(, void, test_on_error, void*, context, IO_ERROR_RESULT, error_result);
 MOCKABLE_FUNCTION(, void, test_on_accept_conn, void*, context, const void*, config);
+MOCKABLE_FUNCTION(, void, test_on_error, void*, context, IO_ERROR_RESULT, error_result);
+MOCKABLE_FUNCTION(, void, test_on_client_close, void*, context);
+
 
 #ifdef __cplusplus
 extern "C"
@@ -1247,7 +1250,36 @@ CTEST_FUNCTION(cord_socket_process_item_recv_fail)
 
     STRICT_EXPECTED_CALL(item_list_get_front(IGNORED_ARG));
     STRICT_EXPECTED_CALL(recv(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG)).SetReturn(0);
-    STRICT_EXPECTED_CALL(test_on_error(IGNORED_ARG, IO_ERROR_SERVER_DISCONN));
+    STRICT_EXPECTED_CALL(test_on_error(IGNORED_ARG, IO_ERROR_ENDPOINT_DISCONN));
+
+    // act
+    cord_socket_process_item(handle);
+
+    // assert
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    (void)cord_socket_close(handle, test_on_close_complete, NULL);
+    cord_socket_process_item(handle);
+    cord_socket_destroy(handle);
+}
+
+CTEST_FUNCTION(cord_socket_process_item_socket_close_fail)
+{
+    // arrange
+    SOCKETIO_CONFIG config = {0};
+    config.hostname = TEST_HOSTNAME;
+    config.port = TEST_PORT_VALUE;
+    config.address_type = ADDRESS_TYPE_IP;
+    PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, test_on_client_close, TEST_USER_CONTEXT_VALUE };
+    CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
+    (void)cord_socket_open(handle, test_on_open_complete, NULL);
+    cord_socket_process_item(handle);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(item_list_get_front(IGNORED_ARG));
+    STRICT_EXPECTED_CALL(recv(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG)).SetReturn(0);
+    STRICT_EXPECTED_CALL(test_on_client_close(TEST_USER_CONTEXT_VALUE));
 
     // act
     cord_socket_process_item(handle);

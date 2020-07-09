@@ -20,4 +20,4 @@ set(${theseTestsName}_h_files
 
 add_definitions(-DUSE_SOCKET_DEBUG_SHIM)
 
-build_test_project(${theseTestsName} "tests/lib_utils_tests")
+build_test_project(${theseTestsName} "tests/patchcord_tests")

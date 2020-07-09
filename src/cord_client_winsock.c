@@ -57,13 +57,15 @@ typedef struct SOCKET_INSTANCE_TAG
 
     // Callbacks
     ON_IO_OPEN_COMPLETE on_io_open_complete;
-    void* on_io_open_complete_context;
+    void* on_io_open_complete_ctx;
     ON_BYTES_RECEIVED on_bytes_received;
-    void* on_bytes_received_context;
+    void* on_bytes_received_ctx;
     ON_IO_ERROR on_io_error;
-    void* on_io_error_context;
+    void* on_io_error_ctx;
     ON_IO_CLOSE_COMPLETE on_io_close_complete;
-    void* on_close_context;
+    void* on_close_ctx;
+    ON_CLIENT_CLOSED on_client_close;
+    void* on_close_ctx;
 
     ON_INCOMING_CONNECT on_incoming_conn;
     void* on_incoming_ctx;
@@ -95,7 +97,7 @@ static int indicate_error(SOCKET_INSTANCE* socket_impl, IO_ERROR_RESULT err_resu
     socket_impl->current_state = IO_STATE_ERROR;
     if (socket_impl->on_io_error != NULL)
     {
-        socket_impl->on_io_error(socket_impl->on_io_error_context, err_result);
+        socket_impl->on_io_error(socket_impl->on_io_error_ctx, err_result);
     }
     return 0;
 }
@@ -115,7 +117,7 @@ static void close_socket(SOCKET_INSTANCE* socket_impl)
 
     if (socket_impl->on_io_close_complete != NULL)
     {
-        socket_impl->on_io_close_complete(socket_impl->on_close_context);
+        socket_impl->on_io_close_complete(socket_impl->on_close_ctx);
     }
 }
 
@@ -133,7 +135,7 @@ static int open_socket(SOCKET_INSTANCE* socket_impl)
         log_error("Failure selecting network interface to connect");
         if (socket_impl->on_io_open_complete != NULL)
         {
-            socket_impl->on_io_open_complete(socket_impl->on_io_open_complete_context, IO_OPEN_ERROR);
+            socket_impl->on_io_open_complete(socket_impl->on_io_open_complete_ctx, IO_OPEN_ERROR);
         }
         socket_impl->current_state = IO_STATE_ERROR;
         result = __LINE__;
@@ -151,7 +153,7 @@ static int open_socket(SOCKET_INSTANCE* socket_impl)
             log_error("Failure getting address info");
             if (socket_impl->on_io_open_complete != NULL)
             {
-                socket_impl->on_io_open_complete(socket_impl->on_io_open_complete_context, IO_OPEN_ERROR);
+                socket_impl->on_io_open_complete(socket_impl->on_io_open_complete_ctx, IO_OPEN_ERROR);
             }
             socket_impl->current_state = IO_STATE_ERROR;
             result = __LINE__;
@@ -174,7 +176,7 @@ static int open_socket(SOCKET_INSTANCE* socket_impl)
             log_error("Hostname %s is too long for a unix socket (max len = %lu)", socket_impl->hostname, (unsigned long)sizeof(socket_addr.sun_path));
             if (socket_impl->on_io_open_complete != NULL)
             {
-                socket_impl->on_io_open_complete(socket_impl->on_io_open_complete_context, IO_OPEN_ERROR);
+                socket_impl->on_io_open_complete(socket_impl->on_io_open_complete_ctx, IO_OPEN_ERROR);
             }
             socket_impl->current_state = IO_STATE_ERROR;
             result = MU_FAILURE;
@@ -206,7 +208,7 @@ static int open_socket(SOCKET_INSTANCE* socket_impl)
             log_error("Failure: connect failure %d.", errno);
             if (socket_impl->on_io_open_complete != NULL)
             {
-                socket_impl->on_io_open_complete(socket_impl->on_io_open_complete_context, IO_OPEN_ERROR);
+                socket_impl->on_io_open_complete(socket_impl->on_io_open_complete_ctx, IO_OPEN_ERROR);
             }
             result = __LINE__;
         }
@@ -215,7 +217,7 @@ static int open_socket(SOCKET_INSTANCE* socket_impl)
             log_error("Failure: ioctlsocket failure %d.", errno);
             if (socket_impl->on_io_open_complete != NULL)
             {
-                socket_impl->on_io_open_complete(socket_impl->on_io_open_complete_context, IO_OPEN_ERROR);
+                socket_impl->on_io_open_complete(socket_impl->on_io_open_complete_ctx, IO_OPEN_ERROR);
             }
             result = __LINE__;
         }
@@ -223,7 +225,7 @@ static int open_socket(SOCKET_INSTANCE* socket_impl)
         {
             if (socket_impl->on_io_open_complete != NULL)
             {
-                socket_impl->on_io_open_complete(socket_impl->on_io_open_complete_context, IO_OPEN_OK);
+                socket_impl->on_io_open_complete(socket_impl->on_io_open_complete_ctx, IO_OPEN_OK);
             }
             result = 0;
         }
@@ -321,12 +323,19 @@ static int recv_socket_data(SOCKET_INSTANCE* socket_impl)
         int recv_res = recv(socket_impl->socket, (char*)socket_impl->recv_bytes, RECV_BYTES_MAX_VALUE, 0);
         if (recv_res > 0)
         {
-            socket_impl->on_bytes_received(socket_impl->on_bytes_received_context, socket_impl->recv_bytes, recv_res);
+            socket_impl->on_bytes_received(socket_impl->on_bytes_received_ctx, socket_impl->recv_bytes, recv_res);
             result = 0;
         }
         else if (recv_res == 0)
         {
-            indicate_error(socket_impl, IO_ENDPOINT_DISCONNECTED);
+            if (socket_impl->on_client_close != NULL)
+            {
+                socket_impl->on_client_close(socket_impl->on_close_ctx);
+            }
+            else
+            {
+                indicate_error(socket_impl, IO_ERROR_ENDPOINT_DISCONN);
+            }
             result = __LINE__;
         }
         else
@@ -491,7 +500,7 @@ static SOCKET_INSTANCE* create_socket_info(const SOCKETIO_CONFIG* config)
     return result;
 }
 
-CORD_HANDLE cord_socket_create(const void* parameters, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_context, ON_IO_ERROR on_io_error, void* on_io_error_context)
+CORD_HANDLE cord_socket_create(const void* parameters, const PATCHCORD_CALLBACK_INFO* client_cb)
 {
     SOCKET_INSTANCE* result;
     WSADATA wsa_data;
@@ -512,10 +521,12 @@ CORD_HANDLE cord_socket_create(const void* parameters, ON_BYTES_RECEIVED on_byte
     }
     else
     {
-        result->on_bytes_received = on_bytes_received;
-        result->on_bytes_received_context = on_bytes_received_context;
-        result->on_io_error = on_io_error;
-        result->on_io_error_context = on_io_error_context;
+        result->on_bytes_received = client_cb->on_bytes_received;
+        result->on_bytes_received_ctx = client_cb->on_bytes_received_ctx;
+        result->on_io_error = client_cb->on_io_error;
+        result->on_io_error_ctx = client_cb->on_io_error_ctx;
+        result->on_client_close = client_cb->on_client_close;
+        result->on_close_ctx = client_cb->on_close_ctx;
     }
     return (CORD_HANDLE)result;
 }
@@ -535,7 +546,7 @@ void cord_socket_destroy(CORD_HANDLE xio)
     }
 }
 
-int cord_socket_open(CORD_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_context)
+int cord_socket_open(CORD_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_ctx)
 {
     int result;
     if (xio == NULL)
@@ -560,7 +571,7 @@ int cord_socket_open(CORD_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, v
         {
             socket_impl->current_state = IO_STATE_OPENING;
             socket_impl->on_io_open_complete = on_io_open_complete;
-            socket_impl->on_io_open_complete_context = on_io_open_complete_context;
+            socket_impl->on_io_open_complete_ctx = on_io_open_complete_ctx;
             result = 0;
         }
     }
@@ -653,7 +664,7 @@ int cord_socket_close(CORD_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_complete
         {
             socket_impl->current_state = IO_STATE_CLOSING;
             socket_impl->on_io_close_complete = on_io_close_complete;
-            socket_impl->on_close_context = ctx;
+            socket_impl->on_close_ctx = ctx;
             result = 0;
         }
     }

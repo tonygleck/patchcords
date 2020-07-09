@@ -62,9 +62,19 @@ typedef void(*ON_CLIENT_CLOSED)(void* context);
 
 typedef void(*ON_INCOMING_CONNECT)(void* context, const void* config);
 
-typedef CORD_HANDLE(*IO_CREATE)(const void* io_create_parameters, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_ctx, ON_IO_ERROR on_io_error, void* on_io_error_ctx);
+typedef struct PATCHCORD_CALLBACK_INFO_TAG
+{
+    ON_BYTES_RECEIVED on_bytes_received;
+    void* on_bytes_received_ctx;
+    ON_IO_ERROR on_io_error;
+    void* on_io_error_ctx;
+    ON_CLIENT_CLOSED on_client_close;
+    void* on_close_ctx;
+} PATCHCORD_CALLBACK_INFO;
+
+typedef CORD_HANDLE(*IO_CREATE)(const void* io_create_parameters, const PATCHCORD_CALLBACK_INFO* client_cb);
 typedef void(*IO_DESTROY)(CORD_HANDLE impl_handle);
-typedef int(*IO_OPEN)(CORD_HANDLE impl_handle, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_context);
+typedef int(*IO_OPEN)(CORD_HANDLE impl_handle, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_ctx);
 typedef int(*IO_CLOSE)(CORD_HANDLE impl_handle, ON_IO_CLOSE_COMPLETE on_io_close_complete, void* callback_context);
 typedef int(*IO_SEND)(CORD_HANDLE impl_handle, const void* buffer, size_t size, ON_SEND_COMPLETE on_send_complete, void* callback_ctx);
 typedef void(*IO_PROCESS_ITEM)(CORD_HANDLE impl_handle);
@@ -84,16 +94,6 @@ typedef struct IO_INTERFACE_DESCRIPTION_TAG
     IO_QUERY_PORT interface_impl_query_port;
     IO_LISTEN interface_impl_listen;
 } IO_INTERFACE_DESCRIPTION;
-
-typedef struct PATCHCORD_CALLBACK_INFO_TAG
-{
-    ON_BYTES_RECEIVED on_bytes_received;
-    void* on_bytes_received_ctx;
-    ON_IO_ERROR on_io_error;
-    void* on_io_error_ctx;
-    ON_CLIENT_CLOSED on_client_closed;
-    void* client_close_ctx;
-} PATCHCORD_CALLBACK_INFO;
 
 MOCKABLE_FUNCTION(, PATCH_INSTANCE_HANDLE, patchcord_client_create, const IO_INTERFACE_DESCRIPTION*, io_interface_description, const void*, parameters, const PATCHCORD_CALLBACK_INFO*, client_cb);
 MOCKABLE_FUNCTION(, void, patchcord_client_destroy, PATCH_INSTANCE_HANDLE, xio);

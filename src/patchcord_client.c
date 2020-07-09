@@ -40,7 +40,7 @@ PATCH_INSTANCE_HANDLE patchcord_client_create(const IO_INTERFACE_DESCRIPTION* io
         if ((result = (PATCH_INSTANCE*)malloc(sizeof(PATCH_INSTANCE))) != NULL)
         {
             result->io_interface_description = io_interface_description;
-            if ((result->concrete_xio_handle  = result->io_interface_description->interface_impl_create(parameters, client_cb->on_bytes_received, client_cb->on_bytes_received_ctx, client_cb->on_io_error, client_cb->on_io_error_ctx)) == NULL)
+            if ((result->concrete_xio_handle  = result->io_interface_description->interface_impl_create(parameters, client_cb)) == NULL)
             {
                 log_error("Failure calling interface create");
                 free(result);
@@ -65,7 +65,7 @@ void patchcord_client_destroy(PATCH_INSTANCE_HANDLE xio)
     }
 }
 
-int patchcord_client_open(PATCH_INSTANCE_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_context)
+int patchcord_client_open(PATCH_INSTANCE_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_ctx)
 {
     int result;
     if (xio == NULL)
@@ -76,7 +76,7 @@ int patchcord_client_open(PATCH_INSTANCE_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_o
     else
     {
         PATCH_INSTANCE* xio_instance = (PATCH_INSTANCE*)xio;
-        result = xio_instance->io_interface_description->interface_impl_open(xio_instance->concrete_xio_handle, on_io_open_complete, on_io_open_complete_context);
+        result = xio_instance->io_interface_description->interface_impl_open(xio_instance->concrete_xio_handle, on_io_open_complete, on_io_open_complete_ctx);
     }
     return result;
 }

@@ -8,6 +8,7 @@
 #include <time.h>
 
 #include "lib-util-c/thread_mgr.h"
+#include "lib-util-c/alarm_timer.h"
 
 #include "patchcords/patchcord_client.h"
 #include "patchcords/cord_socket_client.h"
@@ -27,6 +28,7 @@ typedef enum SOCKET_STATE_TAG
 typedef struct CLIENT_CONNECTION_TAG
 {
     SOCKET_STATE state;
+    size_t msg_size;
     uint64_t msg_recieved;
     time_t connect_time;
     PATCH_INSTANCE_HANDLE incoming_socket;
@@ -34,28 +36,15 @@ typedef struct CLIENT_CONNECTION_TAG
 
 typedef struct PERF_SERVER_TAG
 {
+    ALARM_TIMER_INFO timer;
     uint32_t max_concurent_conn;
     int error;
     bool socket_open;
     int send_complete;
+
     // For now
     CLIENT_CONNECTION* client_conn;
 } PERF_SERVER;
-
-// void on_server_open_complete(void* context, IO_OPEN_RESULT open_result)
-// {
-//     PERF_SERVER* data = (PERF_SERVER*)context;
-//     if (open_result != IO_OPEN_OK)
-//     {
-//         data->error = 1;
-//         printf("Open failed\n");
-//     }
-//     else
-//     {
-//         data->socket_open = true;
-//         printf("Open complete called\n");
-//     }
-// }
 
 static void on_server_error(void* context, IO_ERROR_RESULT error_result)
 {
@@ -99,12 +88,12 @@ static void process_client_info(CLIENT_CONNECTION* client_conn)
 
     // Print stats
     printf("Client Statistics:\n");
-    double time_conn = difftime(client_conn->connect_time, time(NULL));
-    printf("\n\nTime Connected: %f\n", time_conn);
+    double time_conn = difftime(time(NULL), client_conn->connect_time);
+    printf("\n\nTime Connected: %.1f\n", time_conn);
     printf("Messages Received: %zu\n", client_conn->msg_recieved);
     if (time_conn != 0)
     {
-        printf("Messages per sec: %f\n\n", client_conn->msg_recieved/time_conn);
+        printf("Messages per sec: %.1f\n\n", client_conn->msg_recieved/time_conn);
     }
     else
     {
@@ -116,7 +105,12 @@ static void process_client_info(CLIENT_CONNECTION* client_conn)
 void on_client_bytes_recv(void* context, const unsigned char* buffer, size_t size)
 {
     CLIENT_CONNECTION* client_conn = (CLIENT_CONNECTION*)context;
-    client_conn->msg_recieved++;
+    client_conn->msg_size += size;
+    if (client_conn->msg_size >= MESSAGE_SIZE)
+    {
+        client_conn->msg_size = 0;
+        client_conn->msg_recieved++;
+    }
 }
 
 void on_client_error(void* context, IO_ERROR_RESULT error_result)
@@ -148,11 +142,13 @@ static void on_accept_conn(void* context, const void* config)
     }
     else
     {
-        PATCHCORD_CALLBACK_INFO client_info;
+        PATCHCORD_CALLBACK_INFO client_info = { 0 };
         client_info.on_bytes_received = on_client_bytes_recv;
         client_info.on_bytes_received_ctx = client_conn;
         client_info.on_io_error = on_client_error;
         client_info.on_io_error_ctx = client_conn;
+        client_info.on_client_close = on_client_close;
+        client_info.on_close_ctx = client_conn;
 
         // TODO: add to thread pool
         client_conn->connect_time = time(NULL);
@@ -185,7 +181,11 @@ int main()
     client_info.on_io_error_ctx = &data;
 
     // Create thread pool here;
-    if ((xio_handle = patchcord_client_create(io_desc, &config, &client_info)) == NULL)
+    if (alarm_timer_init(&data.timer) != 0)
+    {
+        printf("failure initializing timer\n");
+    }
+    else if ((xio_handle = patchcord_client_create(io_desc, &config, &client_info)) == NULL)
     {
         printf("Failure creating socket\n");
     }
@@ -195,6 +195,10 @@ int main()
         if (patchcord_client_listen(xio_handle, on_accept_conn, &data) != 0)
         {
             printf("Failed socket open\n");
+        }
+        else if (alarm_timer_start(&data.timer, SERVER_TIMEOUT_RUNTIME) != 0)
+        {
+            printf("Failure starting timer\n");
         }
         else
         {
@@ -208,8 +212,13 @@ int main()
                 {
                     process_client_info(data.client_conn);
                     data.client_conn = NULL;
+                    alarm_timer_reset(&data.timer);
                 }
                 thread_mgr_sleep(2);
+                if (data.error != 0 || alarm_timer_is_expired(&data.timer))
+                {
+                    break;
+                }
             } while (data.error == 0);
         }
         patchcord_client_destroy(xio_handle);

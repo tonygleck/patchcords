@@ -88,7 +88,7 @@ typedef struct SOCKET_INSTANCE_TAG
     void* on_io_error_ctx;
     ON_IO_CLOSE_COMPLETE on_io_close_complete;
     void* on_close_complete_ctx;
-    ON_CLIENT_CLOSED on_client_close;
+    ON_CLIENT_CLOSED on_client_closed;
     void* on_close_ctx;
 
     ON_INCOMING_CONNECT on_incoming_conn;
@@ -358,9 +358,9 @@ static int recv_socket_data(SOCKET_INSTANCE* socket_impl)
         }
         else if (recv_res == 0)
         {
-            if (socket_impl->on_client_close != NULL)
+            if (socket_impl->on_client_closed != NULL)
             {
-                socket_impl->on_client_close(socket_impl->on_close_ctx);
+                socket_impl->on_client_closed(socket_impl->on_close_ctx);
             }
             else
             {
@@ -548,7 +548,7 @@ CORD_HANDLE cord_socket_create(const void* parameters, const PATCHCORD_CALLBACK_
         result->on_bytes_received_ctx = client_cb->on_bytes_received_ctx;
         result->on_io_error = client_cb->on_io_error;
         result->on_io_error_ctx = client_cb->on_io_error_ctx;
-        result->on_client_close = client_cb->on_client_close;
+        result->on_client_closed = client_cb->on_client_close;
         result->on_close_ctx = client_cb->on_close_ctx;
     }
     return (CORD_HANDLE)result;

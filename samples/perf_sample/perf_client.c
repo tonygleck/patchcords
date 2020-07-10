@@ -47,7 +47,7 @@ void on_xio_open_complete(void* context, IO_OPEN_RESULT open_result)
     else
     {
         sample->socket_open = true;
-        printf("Open complete called");
+        printf("Open complete called\n");
     }
 }
 
@@ -123,6 +123,11 @@ static CORD_HANDLE open_server(PERF_CLIENT* data)
     return result;
 }
 
+static void list_remove_func(void* user_ctx, void* remove_item)
+{
+    free(remove_item);
+}
+
 static int send_message(CORD_HANDLE svr_conn, PERF_CLIENT* data)
 {
     int result;
@@ -130,6 +135,7 @@ static int send_message(CORD_HANDLE svr_conn, PERF_CLIENT* data)
     {
         data->latest_send = (INSTRUMENTATION*)malloc(sizeof(INSTRUMENTATION));
 
+        data->latest_send->in_flight = true;
         data->latest_send->time_sent = time(NULL);
         if (patchcord_client_send(svr_conn, PERF_SEND_DATA, MESSAGE_SIZE, on_xio_send_complete, data->latest_send) != 0)
         {
@@ -140,7 +146,6 @@ static int send_message(CORD_HANDLE svr_conn, PERF_CLIENT* data)
         else
         {
             item_list_add_item(data->instrument_list, data->latest_send);
-            data->latest_send->in_flight = true;
             result = 0;
         }
     }
@@ -165,21 +170,27 @@ static void process_perf_info(PERF_CLIENT* data)
     }
 
     printf("Messages Sent: %zu\n", msg_cnt);
-    printf("Avg Latency: %f\n", latency_total);
+    printf("Avg Latency: %.1f\n", latency_total);
 }
 
 int main()
 {
     PERF_CLIENT data = {0};
+    data.send_async = true;
 
     CORD_HANDLE svr_conn;
     if (alarm_timer_init(&data.timer) != 0)
     {
         printf("failure initializing timer\n");
     }
+    else if ((data.instrument_list = item_list_create(list_remove_func, &data)) == NULL)
+    {
+        printf("failure item list\n");
+    }
     else if ((svr_conn = open_server(&data)) == NULL)
     {
         printf("Failure opening server\r");
+        item_list_destroy(data.instrument_list);
     }
     else
     {
@@ -192,7 +203,7 @@ int main()
                     break;
                 }
                 patchcord_client_process_item(svr_conn);
-                thread_mgr_sleep(1000);
+                thread_mgr_sleep(1);
             } while (!alarm_timer_is_expired(&data.timer));
         }
         // Call close
@@ -200,6 +211,8 @@ int main()
 
         // Write performance information
         process_perf_info(&data);
+
+        item_list_destroy(data.instrument_list);
     }
     return 0;
 }

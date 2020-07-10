@@ -26,11 +26,11 @@ typedef struct SOCKET_INSTANCE_TAG
     SOCKET_STATE current_state;
 
     ON_IO_OPEN_COMPLETE on_io_open_complete;
-    void* on_io_open_complete_context;
+    void* on_io_open_complete_ctx;
     ON_BYTES_RECEIVED on_bytes_received;
-    void* on_bytes_received_context;
+    void* on_bytes_received_ctx;
     ON_IO_ERROR on_io_error;
-    void* on_io_error_context;
+    void* on_io_error_ctx;
 } SOCKET_INSTANCE;
 
 static int clone_string(char** target, const char* source)
@@ -102,7 +102,7 @@ void cord_socket_destroy(CORD_HANDLE xio)
     }
 }
 
-int cord_socket_open(CORD_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_context, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_context, ON_IO_ERROR on_io_error, void* on_io_error_context)
+int cord_socket_open(CORD_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_ctx, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_ctx, ON_IO_ERROR on_io_error, void* on_io_error_ctx)
 {
     int result;
     if (xio == NULL)
@@ -122,11 +122,11 @@ int cord_socket_open(CORD_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, v
         {
             socket_impl->current_state = IO_STATE_OPENING;
             socket_impl->on_io_open_complete = on_io_open_complete;
-            socket_impl->on_io_open_complete_context = on_io_open_complete_context;
+            socket_impl->on_io_open_complete_ctx = on_io_open_complete_ctx;
             socket_impl->on_bytes_received = on_bytes_received;
-            socket_impl->on_bytes_received_context = on_bytes_received_context;
+            socket_impl->on_bytes_received_ctx = on_bytes_received_ctx;
             socket_impl->on_io_error = on_io_error;
-            socket_impl->on_io_error_context = on_io_error_context;
+            socket_impl->on_io_error_ctx = on_io_error_ctx;
             result = 0;
         }
     }

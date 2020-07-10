@@ -43,6 +43,8 @@ typedef struct TLS_INSTANCE_TAG
     ON_IO_ERROR on_error;
     void* on_error_ctx;
     ON_IO_CLOSE_COMPLETE on_close_complete;
+    void* on_close_complete_ctx;
+    ON_CLIENT_CLOSED on_client_close;
     void* on_close_ctx;
 
     SSL_CTX* ssl_ctx;
@@ -583,7 +585,7 @@ static int create_underlying_socket(TLS_INSTANCE* tls_instance, const TLS_CONFIG
     return result;
 }
 
-CORD_HANDLE cord_tls_create(const void* parameters, ON_BYTES_RECEIVED on_bytes_received, void* on_bytes_received_ctx, ON_IO_ERROR on_error, void* on_error_ctx)
+CORD_HANDLE cord_tls_create(const void* parameters, const PATCHCORD_CALLBACK_INFO* client_cb)
 {
     TLS_INSTANCE* result;
     if (parameters == NULL)
@@ -621,10 +623,12 @@ CORD_HANDLE cord_tls_create(const void* parameters, ON_BYTES_RECEIVED on_bytes_r
         }
         else
         {
-            result->on_bytes_received = on_bytes_received;
-            result->on_bytes_received_ctx = on_bytes_received_ctx;
-            result->on_error = on_error;
-            result->on_error_ctx = on_error_ctx;
+            result->on_bytes_received = client_cb->on_bytes_received;
+            result->on_bytes_received_ctx = client_cb->on_bytes_received_ctx;
+            result->on_error = client_cb->on_io_error;
+            result->on_error_ctx = client_cb->on_io_error_ctx;
+            result->on_client_close = client_cb->on_client_close;
+            result->on_close_ctx = client_cb->on_close_ctx;
             result->port = config->port;
 
             result->certificate = config->client_certificate;
@@ -739,7 +743,7 @@ int cord_tls_close(CORD_HANDLE handle, ON_IO_CLOSE_COMPLETE on_close_complete, v
         {
             TLS_INSTANCE* tls_instance = (TLS_INSTANCE*)handle;
             tls_instance->on_close_complete = on_close_complete;
-            tls_instance->on_close_ctx = callback_ctx;
+            tls_instance->on_close_complete_ctx = callback_ctx;
 
             if (tls_instance->current_state == IO_STATE_OPENING || tls_instance->current_state == IO_STATE_OPEN)
             {
@@ -748,22 +752,22 @@ int cord_tls_close(CORD_HANDLE handle, ON_IO_CLOSE_COMPLETE on_close_complete, v
 
             if (tls_instance->socket_iface->interface_impl_close(tls_instance->underlying_socket, on_socket_close_complete, tls_instance) != 0)
             {
-                log_error("Failure attempting to close socket");
-                result = __LINE__;
-                tls_instance->current_state = IO_STATE_ERROR;
+                log_warning("Failure attempting to close socket");
+                tls_instance->current_state = IO_STATE_CLOSED;
             }
             else
             {
                 tls_instance->current_state = IO_STATE_CLOSING;
-                SSL_free(tls_instance->ssl_object);
-                (void)BIO_free(tls_instance->input_bio);
-                (void)BIO_free(tls_instance->output_bio);
-                if (tls_instance->ssl_ctx != NULL)
-                {
-                    SSL_CTX_free(tls_instance->ssl_ctx);
-                }
-                result = 0;
             }
+
+            SSL_free(tls_instance->ssl_object);
+            (void)BIO_free(tls_instance->input_bio);
+            (void)BIO_free(tls_instance->output_bio);
+            if (tls_instance->ssl_ctx != NULL)
+            {
+                SSL_CTX_free(tls_instance->ssl_ctx);
+            }
+            result = 0;
         }
     }
     return result;
@@ -830,7 +834,7 @@ void cord_tls_process_item(CORD_HANDLE handle)
             case IO_STATE_CLOSED:
                 if (tls_instance->on_close_complete != NULL)
                 {
-                    tls_instance->on_close_complete(tls_instance->on_close_ctx);
+                    tls_instance->on_close_complete(tls_instance->on_close_complete_ctx);
                 }
                 break;
             case IO_STATE_LISTENING:

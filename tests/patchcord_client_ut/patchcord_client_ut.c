@@ -36,7 +36,7 @@ static void my_mem_shim_free(void* ptr)
 
 MOCKABLE_FUNCTION(, CORD_HANDLE, test_xio_create, const void*, xio_create_parameters, const PATCHCORD_CALLBACK_INFO*, client_cb);
 MOCKABLE_FUNCTION(, void, test_xio_destroy, CORD_HANDLE, handle);
-MOCKABLE_FUNCTION(, int, test_xio_open, CORD_HANDLE, handle, ON_IO_OPEN_COMPLETE, on_io_open_complete, void*, on_io_open_complete_context);
+MOCKABLE_FUNCTION(, int, test_xio_open, CORD_HANDLE, handle, ON_IO_OPEN_COMPLETE, on_io_open_complete, void*, on_io_open_complete_ctx);
 MOCKABLE_FUNCTION(, int, test_xio_close, CORD_HANDLE, handle, ON_IO_CLOSE_COMPLETE, on_io_close_complete, void*, callback_context);
 MOCKABLE_FUNCTION(, int, test_xio_send, CORD_HANDLE, handle, const void*, buffer, size_t, size, ON_SEND_COMPLETE, on_send_complete, void*, callback_context);
 MOCKABLE_FUNCTION(, void, test_xio_process_item, CORD_HANDLE, handle);

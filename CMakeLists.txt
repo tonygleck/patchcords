@@ -45,6 +45,7 @@ set(source_c_files
 set(source_h_files
     ./inc/patchcords/socket_debug_shim.h
     ./inc/patchcords/patchcord_client.h
+    ./inc/patchcords/version_patchcord.h
 )
 
 #this is the product (a library)
@@ -62,12 +63,20 @@ if (WIN32)
     set(socket_c_files
         ./src/cord_client_winsock.c
     )
+    set(socket_h_files
+        ${socket_h_files}
+        ./inc/patchcords/version_winsock.h
+    )
     set(socket_lib cord_winsock)
     set(dependent_libs ws2_32)
 endif()
 if (UNIX)
     set(socket_c_files
         ./src/cord_client_berkley.c
+    )
+    set(socket_h_files
+        ${socket_h_files}
+        ./inc/patchcords/version_berkley.h
     )
     set(socket_lib cord_berkley)
 endif()

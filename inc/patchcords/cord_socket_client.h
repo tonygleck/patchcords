@@ -21,7 +21,7 @@ typedef struct SOCKETIO_CONFIG_TAG
 
 MOCKABLE_FUNCTION(, CORD_HANDLE, cord_socket_create, const void*, parameters, const PATCHCORD_CALLBACK_INFO*, client_cb);
 MOCKABLE_FUNCTION(, void, cord_socket_destroy, CORD_HANDLE, xio);
-MOCKABLE_FUNCTION(, int, cord_socket_open, CORD_HANDLE, xio, ON_IO_OPEN_COMPLETE, on_io_open_complete, void*, on_io_open_complete_context);
+MOCKABLE_FUNCTION(, int, cord_socket_open, CORD_HANDLE, xio, ON_IO_OPEN_COMPLETE, on_io_open_complete, void*, on_io_open_complete_ctx);
 MOCKABLE_FUNCTION(, int, cord_socket_listen, CORD_HANDLE, xio, ON_INCOMING_CONNECT, incoming_conn_cb, void*, user_ctx);
 MOCKABLE_FUNCTION(, int, cord_socket_close, CORD_HANDLE, xio, ON_IO_CLOSE_COMPLETE, on_io_close_complete, void*, callback_context);
 MOCKABLE_FUNCTION(, int, cord_socket_send, CORD_HANDLE, xio, const void*, buffer, size_t, size, ON_SEND_COMPLETE, on_send_complete, void*, callback_context);

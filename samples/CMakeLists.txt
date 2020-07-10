@@ -11,6 +11,8 @@ function(add_sample_directory whatIsBuilding)
     set_target_properties(${whatIsBuilding} PROPERTIES FOLDER "Samples")
 endfunction()
 
+add_subdirectory(perf_sample)
+
 add_sample_directory(socket_listener)
 add_sample_directory(socket_sample)
 add_sample_directory(tls_client_listener)

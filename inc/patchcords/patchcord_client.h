@@ -58,7 +58,7 @@ typedef void(*ON_SEND_COMPLETE)(void* context, IO_SEND_RESULT send_result);
 typedef void(*ON_IO_OPEN_COMPLETE)(void* context, IO_OPEN_RESULT open_result);
 typedef void(*ON_IO_CLOSE_COMPLETE)(void* context);
 typedef void(*ON_IO_ERROR)(void* context, IO_ERROR_RESULT error_result);
-typedef void(*ON_CLIENT_CLOSE)(void* context);
+typedef void(*ON_CLIENT_CLOSED)(void* context);
 
 typedef void(*ON_INCOMING_CONNECT)(void* context, const void* config);
 
@@ -68,13 +68,13 @@ typedef struct PATCHCORD_CALLBACK_INFO_TAG
     void* on_bytes_received_ctx;
     ON_IO_ERROR on_io_error;
     void* on_io_error_ctx;
-    ON_CLIENT_CLOSE on_client_close;
+    ON_CLIENT_CLOSED on_client_close;
     void* on_close_ctx;
 } PATCHCORD_CALLBACK_INFO;
 
 typedef CORD_HANDLE(*IO_CREATE)(const void* io_create_parameters, const PATCHCORD_CALLBACK_INFO* client_cb);
 typedef void(*IO_DESTROY)(CORD_HANDLE impl_handle);
-typedef int(*IO_OPEN)(CORD_HANDLE impl_handle, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_context);
+typedef int(*IO_OPEN)(CORD_HANDLE impl_handle, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_ctx);
 typedef int(*IO_CLOSE)(CORD_HANDLE impl_handle, ON_IO_CLOSE_COMPLETE on_io_close_complete, void* callback_context);
 typedef int(*IO_SEND)(CORD_HANDLE impl_handle, const void* buffer, size_t size, ON_SEND_COMPLETE on_send_complete, void* callback_ctx);
 typedef void(*IO_PROCESS_ITEM)(CORD_HANDLE impl_handle);

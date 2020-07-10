@@ -667,7 +667,7 @@ CTEST_FUNCTION(cord_tls_close_succeed)
     umock_c_reset_all_calls();
 
     //STRICT_EXPECTED_CALL(test_on_close_complete(IGNORED_ARG));
-    STRICT_EXPECTED_CALL(interface_socket_close(IGNORED_ARG, IGNORED_ARG, NULL));
+    STRICT_EXPECTED_CALL(interface_socket_close(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG));
     STRICT_EXPECTED_CALL(SSL_free(IGNORED_ARG));
     STRICT_EXPECTED_CALL(BIO_free(IGNORED_ARG));
     STRICT_EXPECTED_CALL(BIO_free(IGNORED_ARG));
@@ -695,7 +695,7 @@ CTEST_FUNCTION(cord_tls_close_interface_close_fail)
     umock_c_reset_all_calls();
 
     //STRICT_EXPECTED_CALL(test_on_close_complete(IGNORED_ARG));
-    STRICT_EXPECTED_CALL(interface_socket_close(IGNORED_ARG, test_on_close_complete, NULL)).SetReturn(__LINE__);
+    STRICT_EXPECTED_CALL(interface_socket_close(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG)).SetReturn(__LINE__);
     STRICT_EXPECTED_CALL(SSL_free(IGNORED_ARG));
     STRICT_EXPECTED_CALL(BIO_free(IGNORED_ARG));
     STRICT_EXPECTED_CALL(BIO_free(IGNORED_ARG));

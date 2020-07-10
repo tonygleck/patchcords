@@ -159,18 +159,25 @@ static int send_message(CORD_HANDLE svr_conn, PERF_CLIENT* data)
 static void process_perf_info(PERF_CLIENT* data)
 {
     size_t msg_cnt = item_list_item_count(data->instrument_list);
-    ITERATOR_HANDLE iterator = item_list_iterator(data->instrument_list);
-
-    const INSTRUMENTATION* instrument_item;
-    double latency_total = 0.0;
-    while ((instrument_item = item_list_get_next(data->instrument_list, &iterator)))
+    if (msg_cnt > 0)
     {
-        latency_total += instrument_item->latency;
-        item_list_remove_item(data->instrument_list, 0);
-    }
+        ITERATOR_HANDLE iterator = item_list_iterator(data->instrument_list);
 
-    printf("Messages Sent: %zu\n", msg_cnt);
-    printf("Avg Latency: %.1f\n", latency_total);
+        const INSTRUMENTATION* instrument_item;
+        double latency_total = 0.0;
+        while ((instrument_item = item_list_get_next(data->instrument_list, &iterator)))
+        {
+            latency_total += instrument_item->latency;
+            item_list_remove_item(data->instrument_list, 0);
+        }
+
+        printf("Messages Sent: %zu\n", msg_cnt);
+        printf("Avg Latency: %.1f\n", latency_total);
+    }
+    else
+    {
+        printf("No messages sent\n");
+    }
 }
 
 int main()

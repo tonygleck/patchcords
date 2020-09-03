@@ -45,7 +45,10 @@ MOCKABLE_FUNCTION(, void, test_on_error, void*, context, IO_ERROR_RESULT, error_
 MOCKABLE_FUNCTION(, void, test_on_accept_conn, void*, context, const void*, config);
 MOCKABLE_FUNCTION(, void, test_on_client_close, void*, context);
 
+MOCKABLE_FUNCTION(, CORD_HANDLE, interface_socket_create, const void*, io_create_parameters, const PATCHCORD_CALLBACK_INFO*, client_cb);
+MOCKABLE_FUNCTION(, void, interface_socket_destroy, CORD_HANDLE, impl_handle);
 MOCKABLE_FUNCTION(, int, interface_socket_close, CORD_HANDLE, impl_handle, ON_IO_CLOSE_COMPLETE, on_io_close_complete, void*, callback_context);
+MOCKABLE_FUNCTION(, int, interface_socket_open, CORD_HANDLE, impl_handle, ON_IO_OPEN_COMPLETE, on_io_open_complete, void*, on_io_open_complete_ctx);
 
 // OpenSSL functions
 #if OPENSSL_VERSION_NUMBER >= 0x1010007fL
@@ -101,10 +104,9 @@ MOCKABLE_FUNCTION(, long, SSL_CTX_ctrl, SSL_CTX*, ctx, int, cmd, long, larg, voi
 
 MOCKABLE_FUNCTION(, void, EVP_PKEY_free, EVP_PKEY*, pkey);
 
-/*MOCKABLE_FUNCTION(, CORD_HANDLE, socket_create, const void*, io_create_parameters, ON_BYTES_RECEIVED, on_bytes_received, void*, on_bytes_received_ctx, ON_IO_ERROR, on_io_error, void*, on_io_error_ctx);
-MOCKABLE_FUNCTION(, void, socket_destroy, CORD_HANDLE, impl_handle);
+/*
 MOCKABLE_FUNCTION(, int, socket_open, CORD_HANDLE, impl_handle, ON_IO_OPEN_COMPLETE, on_io_open_complete, void*, on_io_open_complete_ctx);
-MOCKABLE_FUNCTION(, int, socket_close, CORD_HANDLE, impl_handle, ON_IO_CLOSE_COMPLETE, on_io_close_complete, void*, callback_context);
+MOCKABLE_FUNCTION(, int, interface_socket_close, CORD_HANDLE, impl_handle, ON_IO_CLOSE_COMPLETE, on_io_close_complete, void*, callback_context);
 MOCKABLE_FUNCTION(, int, socket_send, CORD_HANDLE, impl_handle, const void*, buffer, size_t, size, ON_SEND_COMPLETE, on_send_complete, void*, callback_ctx);
 MOCKABLE_FUNCTION(, void, socket_process_item, CORD_HANDLE, impl_handle);
 MOCKABLE_FUNCTION(, const char*, socket_query_uri, CORD_HANDLE, impl_handle);
@@ -129,6 +131,8 @@ static bool g_fail_socket_call;
 
 static ON_IO_OPEN_COMPLETE g_on_open_complete;
 static void* g_on_open_ctx;
+static ON_IO_CLOSE_COMPLETE g_on_close_complete;
+static void* g_on_close_ctx;
 
 #define ACCEPT_SOCKET_NUMBER    11
 #define SOCKET_NUMBER           24
@@ -141,35 +145,6 @@ extern "C" {
         size_t len = strlen(source);
         *target = my_mem_shim_malloc(len+1);
         strcpy(*target, source);
-        return 0;
-    }
-
-    static CORD_HANDLE socket_create(const void* xio_create_parameters, const PATCHCORD_CALLBACK_INFO* client_cb)
-    {
-        CORD_HANDLE result;
-        (void)xio_create_parameters;
-        (void)client_cb;
-        if (g_fail_socket_call)
-        {
-            result = NULL;
-        }
-        else
-        {
-            result = (CORD_HANDLE)my_mem_shim_malloc(1);
-        }
-        return result;
-    }
-
-    static void socket_destroy(CORD_HANDLE handle)
-    {
-        my_mem_shim_free(handle);
-    }
-
-    static int socket_open(CORD_HANDLE impl_handle, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_ctx)
-    {
-        (void)impl_handle;
-        g_on_open_complete = on_io_open_complete;
-        g_on_open_ctx = on_io_open_complete_ctx;
         return 0;
     }
 
@@ -248,15 +223,52 @@ extern "C" {
         my_mem_shim_free(a);
     }
 
+    static CORD_HANDLE my_interface_socket_create(const void* xio_create_parameters, const PATCHCORD_CALLBACK_INFO* client_cb)
+    {
+        CORD_HANDLE result;
+        (void)xio_create_parameters;
+        (void)client_cb;
+        if (g_fail_socket_call)
+        {
+            result = NULL;
+        }
+        else
+        {
+            result = (CORD_HANDLE)my_mem_shim_malloc(1);
+        }
+        return result;
+    }
+
+    static void my_interface_socket_destroy(CORD_HANDLE handle)
+    {
+        my_mem_shim_free(handle);
+    }
+
+    static int my_interface_socket_open(CORD_HANDLE impl_handle, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_ctx)
+    {
+        (void)impl_handle;
+        g_on_open_complete = on_io_open_complete;
+        g_on_open_ctx = on_io_open_complete_ctx;
+        return 0;
+    }
+
+    static int my_interface_socket_close(CORD_HANDLE impl_handle, ON_IO_CLOSE_COMPLETE on_io_close_complete, void* callback_context)
+    {
+        g_on_close_complete = on_io_close_complete;
+        g_on_close_ctx = callback_context;
+        return 0;
+    }
+
+
 #ifdef __cplusplus
 }
 #endif
 
 const IO_INTERFACE_DESCRIPTION socket_desc =
 {
-    socket_create,
-    socket_destroy,
-    socket_open,
+    interface_socket_create,
+    interface_socket_destroy,
+    interface_socket_open,
     interface_socket_close,
     socket_send,
     socket_process_item,
@@ -285,6 +297,9 @@ CTEST_SUITE_INITIALIZE()
     REGISTER_UMOCK_ALIAS_TYPE(PATCH_INSTANCE_HANDLE, void*);
     REGISTER_UMOCK_ALIAS_TYPE(ON_IO_CLOSE_COMPLETE, void*);
     REGISTER_UMOCK_ALIAS_TYPE(SSL_verify_cb, void*);
+    REGISTER_UMOCK_ALIAS_TYPE(ON_BYTES_RECEIVED, void*);
+    REGISTER_UMOCK_ALIAS_TYPE(ON_IO_ERROR, void*);
+    REGISTER_UMOCK_ALIAS_TYPE(ON_IO_OPEN_COMPLETE, void*);
 
     REGISTER_GLOBAL_MOCK_HOOK(mem_shim_malloc, my_mem_shim_malloc);
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(mem_shim_malloc, NULL);
@@ -306,6 +321,14 @@ CTEST_SUITE_INITIALIZE()
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(BIO_new, NULL);
     REGISTER_GLOBAL_MOCK_HOOK(BIO_free, my_BIO_free);
 
+    REGISTER_GLOBAL_MOCK_HOOK(interface_socket_create, my_interface_socket_create);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(interface_socket_create, NULL);
+    REGISTER_GLOBAL_MOCK_HOOK(interface_socket_destroy, my_interface_socket_destroy);
+    REGISTER_GLOBAL_MOCK_HOOK(interface_socket_open, my_interface_socket_open);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(interface_socket_open, __LINE__);
+    REGISTER_GLOBAL_MOCK_HOOK(interface_socket_close, my_interface_socket_close);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(interface_socket_close, __LINE__);
+
     //REGISTER_GLOBAL_MOCK_RETURN(cord_socket_get_interface, io_interface_description);
     //REGISTER_GLOBAL_MOCK_FAIL_RETURN(cord_socket_get_interface, NULL);
     //REGISTER_GLOBAL_MOCK_RETURN(socket_create, my_socket_create);
@@ -325,6 +348,10 @@ CTEST_FUNCTION_INITIALIZE()
     g_fail_socket_call = false;
     g_on_open_complete = NULL;
     g_on_open_ctx = NULL;
+
+    g_on_close_complete = NULL;
+    g_on_close_ctx = NULL;
+
 }
 
 CTEST_FUNCTION_CLEANUP()
@@ -346,7 +373,7 @@ static void setup_cord_tls_create_mocks(void)
     STRICT_EXPECTED_CALL(ERR_load_BIO_strings()).CallCannotFail();
     STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
     //STRICT_EXPECTED_CALL(cord_socket_get_interface());
-    //STRICT_EXPECTED_CALL(socket_create(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG));
+    STRICT_EXPECTED_CALL(interface_socket_create(IGNORED_ARG, IGNORED_ARG));
     STRICT_EXPECTED_CALL(clone_string(IGNORED_ARG, IGNORED_ARG));
 }
 
@@ -489,10 +516,9 @@ CTEST_FUNCTION(cord_tls_create_socket_create_NULL_fail)
     tls_config.socket_desc = &socket_desc;
     PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, test_on_client_close, TEST_USER_CONTEXT_VALUE };
 
-    g_fail_socket_call = true;
-
     STRICT_EXPECTED_CALL(ERR_load_BIO_strings()).CallCannotFail();
     STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
+    STRICT_EXPECTED_CALL(interface_socket_create(IGNORED_ARG, IGNORED_ARG)).SetReturn(NULL);
     STRICT_EXPECTED_CALL(free(IGNORED_ARG));
 
     // act
@@ -514,6 +540,7 @@ CTEST_FUNCTION(cord_tls_destroy_succeed)
 
     // STRICT_EXPECTED_CALL(BIO_free(IGNORED_ARG));
     // STRICT_EXPECTED_CALL(BIO_free(IGNORED_ARG));
+    STRICT_EXPECTED_CALL(interface_socket_destroy(IGNORED_ARG));
     STRICT_EXPECTED_CALL(free(IGNORED_ARG));
     STRICT_EXPECTED_CALL(free(IGNORED_ARG));
 
@@ -573,6 +600,26 @@ CTEST_FUNCTION(cord_tls_open_succeed)
     cord_tls_destroy(handle);
 }
 
+CTEST_FUNCTION(cord_tls_open_invalid_state_fail)
+{
+    // arrange
+    CORD_HANDLE handle = initialize_handle();
+    int result = cord_tls_open(handle, test_on_open_complete, NULL);
+    CTEST_ASSERT_ARE_EQUAL(int, 0, result);
+    umock_c_reset_all_calls();
+
+    // act
+    result = cord_tls_open(handle, test_on_open_complete, NULL);
+
+    // assert
+    CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    cord_tls_close(handle, NULL, NULL);
+    cord_tls_destroy(handle);
+}
+
 CTEST_FUNCTION(cord_tls_open_fail)
 {
     // arrange
@@ -623,6 +670,7 @@ CTEST_FUNCTION(cord_tls_open_process_call_succeed)
     STRICT_EXPECTED_CALL(SSL_new(IGNORED_ARG));
     STRICT_EXPECTED_CALL(SSL_set_bio(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG));
     STRICT_EXPECTED_CALL(SSL_set_connect_state(IGNORED_ARG));
+    STRICT_EXPECTED_CALL(interface_socket_open(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG));
     STRICT_EXPECTED_CALL(ERR_clear_error());
     STRICT_EXPECTED_CALL(SSL_do_handshake(IGNORED_ARG));
     STRICT_EXPECTED_CALL(test_on_open_complete(IGNORED_ARG, IO_OPEN_OK));
@@ -635,6 +683,29 @@ CTEST_FUNCTION(cord_tls_open_process_call_succeed)
 
     // assert
     CTEST_ASSERT_ARE_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    cord_tls_close(handle, NULL, NULL);
+    cord_tls_destroy(handle);
+}
+
+CTEST_FUNCTION(cord_tls_open_process_call_open_fail)
+{
+    // arrange
+    CORD_HANDLE handle = initialize_handle();
+    (void)cord_tls_open(handle, test_on_open_complete, NULL);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(interface_socket_open(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG));
+    STRICT_EXPECTED_CALL(test_on_open_complete(IGNORED_ARG, IO_OPEN_ERROR));
+
+    // act
+    cord_tls_process_item(handle); // Call to open
+    g_on_open_complete(g_on_open_ctx, IO_OPEN_ERROR); // start the handshake
+    cord_tls_process_item(handle); // Call to open complete fail
+
+    // assert
     CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
@@ -712,6 +783,46 @@ CTEST_FUNCTION(cord_tls_close_interface_close_fail)
     cord_tls_destroy(handle);
 }
 
+CTEST_FUNCTION(cord_tls_close_not_open_succeed)
+{
+    // arrange
+    CORD_HANDLE handle = initialize_handle();
+    umock_c_reset_all_calls();
+
+    // act
+    int result = cord_tls_close(handle, test_on_close_complete, NULL);
+
+    // assert
+    CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    cord_tls_destroy(handle);
+}
+
+CTEST_FUNCTION(cord_tls_close_process_succeed)
+{
+    // arrange
+    CORD_HANDLE handle = initialize_handle();
+    (void)cord_tls_open(handle, test_on_open_complete, NULL);
+    cord_tls_process_item(handle); // Call to open
+    g_on_open_complete(g_on_open_ctx, IO_OPEN_OK); // start the handshake
+    cord_tls_process_item(handle); // Call to handshake
+    int result = cord_tls_close(handle, test_on_close_complete, NULL);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(test_on_close_complete(IGNORED_ARG));
+
+    // act
+    g_on_close_complete(g_on_close_ctx);
+    cord_tls_process_item(handle); // Call to handshake
+
+    // assert
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    cord_tls_destroy(handle);
+}
 
 CTEST_FUNCTION(cord_tls_send_handle_NULL_fail)
 {

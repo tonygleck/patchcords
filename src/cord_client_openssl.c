@@ -22,11 +22,13 @@ typedef enum SOCKET_STATE_TAG
     IO_STATE_CLOSED,
     IO_STATE_CLOSING,
     IO_STATE_OPENING,
+    IO_STATE_OPEN_ERROR,
     IO_STATE_OPEN,
     IO_STATE_HANDSHAKE,
     IO_STATE_OPENED,
     IO_STATE_LISTENING,
-    IO_STATE_ERROR
+    IO_STATE_ERROR,
+    IO_STATE_STALE
 } SOCKET_STATE;
 
 typedef struct TLS_INSTANCE_TAG
@@ -363,6 +365,26 @@ static int create_ssl_ctx(TLS_INSTANCE* tls_instance)
     return result;
 }
 
+static void close_openssl_instance(TLS_INSTANCE* tls_instance)
+{
+    SSL_free(tls_instance->ssl_object);
+    if (tls_instance->input_bio != NULL)
+    {
+        (void)BIO_free(tls_instance->input_bio);
+        tls_instance->input_bio = NULL;
+    }
+    if (tls_instance->output_bio != NULL)
+    {
+        (void)BIO_free(tls_instance->output_bio);
+        tls_instance->output_bio = NULL;
+    }
+    if (tls_instance->ssl_ctx != NULL)
+    {
+        SSL_CTX_free(tls_instance->ssl_ctx);
+    }
+
+}
+
 static int open_openssl_instance(TLS_INSTANCE* tls_instance)
 {
     int result;
@@ -482,8 +504,8 @@ static void on_socket_open_complete(void* ctx, IO_OPEN_RESULT open_result)
         }
         else
         {
+            tls_instance->current_state = IO_STATE_OPEN_ERROR;
             log_error("Failure opening socket");
-            tls_instance->current_state == IO_STATE_ERROR;
         }
     }
     else
@@ -663,7 +685,7 @@ int cord_tls_open(CORD_HANDLE handle, ON_IO_OPEN_COMPLETE on_open_complete, void
     else
     {
         TLS_INSTANCE* tls_instance = (TLS_INSTANCE*)handle;
-        if (tls_instance->current_state == IO_STATE_OPEN || tls_instance->current_state == IO_STATE_OPENING || tls_instance->current_state == IO_STATE_OPEN)
+        if (tls_instance->current_state == IO_STATE_OPEN || tls_instance->current_state == IO_STATE_OPENING)
         {
             log_error("TLS Connection is in invalid state to open");
             result = __LINE__;
@@ -734,7 +756,7 @@ int cord_tls_close(CORD_HANDLE handle, ON_IO_CLOSE_COMPLETE on_close_complete, v
     else
     {
         TLS_INSTANCE* tls_instance = (TLS_INSTANCE*)handle;
-        if (tls_instance->current_state == IO_STATE_CLOSED || tls_instance->current_state == IO_STATE_CLOSING)
+        if (tls_instance->current_state == IO_STATE_CLOSED || tls_instance->current_state == IO_STATE_CLOSING || tls_instance->current_state == IO_STATE_IDLE)
         {
             log_error("Failure can not close while already closing");
             result = __LINE__;
@@ -759,14 +781,7 @@ int cord_tls_close(CORD_HANDLE handle, ON_IO_CLOSE_COMPLETE on_close_complete, v
             {
                 tls_instance->current_state = IO_STATE_CLOSING;
             }
-
-            SSL_free(tls_instance->ssl_object);
-            (void)BIO_free(tls_instance->input_bio);
-            (void)BIO_free(tls_instance->output_bio);
-            if (tls_instance->ssl_ctx != NULL)
-            {
-                SSL_CTX_free(tls_instance->ssl_ctx);
-            }
+            close_openssl_instance(tls_instance);
             result = 0;
         }
     }
@@ -842,8 +857,23 @@ void cord_tls_process_item(CORD_HANDLE handle)
             case IO_STATE_CLOSING:
             case IO_STATE_OPENED:
             case IO_STATE_IDLE:
+            case IO_STATE_STALE:
+                break;
+            case IO_STATE_OPEN_ERROR:
+                if (tls_instance->on_open_complete != NULL)
+                {
+                    tls_instance->on_open_complete(tls_instance->on_open_complete_ctx, IO_OPEN_ERROR);
+                }
+                // Close from a partial open
+                close_openssl_instance(tls_instance);
+                tls_instance->current_state = IO_STATE_IDLE;
                 break;
             case IO_STATE_ERROR:
+                if (tls_instance->on_error != NULL)
+                {
+                    tls_instance->on_error(tls_instance->on_error_ctx, IO_ERROR_GENERAL);
+                }
+                tls_instance->current_state = IO_STATE_STALE;
                 break;
         }
         tls_instance->socket_iface->interface_impl_process_item(tls_instance->underlying_socket);

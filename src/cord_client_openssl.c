@@ -382,7 +382,6 @@ static void close_openssl_instance(TLS_INSTANCE* tls_instance)
     {
         SSL_CTX_free(tls_instance->ssl_ctx);
     }
-
 }
 
 static int open_openssl_instance(TLS_INSTANCE* tls_instance)

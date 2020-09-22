@@ -699,6 +699,10 @@ CTEST_FUNCTION(cord_tls_open_process_call_open_fail)
 
     STRICT_EXPECTED_CALL(interface_socket_open(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG));
     STRICT_EXPECTED_CALL(test_on_open_complete(IGNORED_ARG, IO_OPEN_ERROR));
+    STRICT_EXPECTED_CALL(SSL_free(IGNORED_ARG));
+    STRICT_EXPECTED_CALL(BIO_free(IGNORED_ARG));
+    STRICT_EXPECTED_CALL(BIO_free(IGNORED_ARG));
+    STRICT_EXPECTED_CALL(SSL_CTX_free(IGNORED_ARG));
 
     // act
     cord_tls_process_item(handle); // Call to open

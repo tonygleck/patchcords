@@ -87,14 +87,26 @@ addCompileSettings(${socket_lib})
 compileTargetAsC99(${socket_lib})
 
 if (${enable_tls_lib})
-    set(tls_c_files
-        ./src/cord_client_openssl.c
-    )
+
+    if (WIN32)
+        set(tls_c_files
+            ./src/cord_client_schannel.c
+        )
+        set(socket_lib cord_schannel)
+        set(dependent_libs crypt32 ws2_32 secur32 advapi32 ncrypt)
+    else()
+        set(tls_c_files
+            ./src/cord_client_openssl.c
+        )
+        set(socket_lib cord_openssl)
+        set(dependent_libs ssl crypto)
+    endif()
+
     set(tls_h_files
-    ./inc/patchcords/cord_tls_client.h
+        ./inc/patchcords/cord_tls_client.h
     )
-    add_library(cord_openssl ${tls_c_files} ${tls_h_files})
-    target_link_libraries(cord_openssl patchcords lib-util-c ssl crypto)
+    add_library(${socket_lib} ${tls_c_files} ${tls_h_files})
+    target_link_libraries(${socket_lib} patchcords lib-util-c ${dependent_libs})
 endif()
 
 if (${patchcords_ut})

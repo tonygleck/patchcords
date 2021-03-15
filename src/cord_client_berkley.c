@@ -116,14 +116,13 @@ static void on_pending_list_item_destroy(void* user_ctx, void* remove_item)
     free(pending_item);
 }
 
-static int indicate_error(SOCKET_INSTANCE* socket_impl, IO_ERROR_RESULT err_result)
+static void indicate_error(SOCKET_INSTANCE* socket_impl, IO_ERROR_RESULT err_result)
 {
     socket_impl->current_state = IO_STATE_ERROR;
     if (socket_impl->on_io_error != NULL)
     {
         socket_impl->on_io_error(socket_impl->on_io_error_ctx, err_result);
     }
-    return 0;
 }
 
 static int select_network_interface(SOCKET_INSTANCE* socket_impl)
@@ -540,7 +539,6 @@ CORD_HANDLE cord_socket_create(const void* parameters, const PATCHCORD_CALLBACK_
     else if ((result = create_socket_info((const SOCKETIO_CONFIG*)parameters)) == NULL)
     {
         log_error("Failure creating socket info");
-        result = NULL;
     }
     else
     {
@@ -633,7 +631,7 @@ int cord_socket_listen(CORD_HANDLE xio, ON_INCOMING_CONNECT incoming_conn_cb, vo
         }
         else
         {
-            struct sockaddr_in serv_addr = {0};
+            struct sockaddr_in serv_addr = { 0 };
             serv_addr.sin_family = AF_INET;
             serv_addr.sin_addr.s_addr = INADDR_ANY;
             serv_addr.sin_port = htons(socket_impl->port);
@@ -715,11 +713,11 @@ int cord_socket_send(CORD_HANDLE xio, const void* buffer, size_t size, ON_SEND_C
         }
         else
         {
-            memset(send_item, 0, sizeof(PENDING_SEND_ITEM));
             send_item->on_send_complete = on_send_complete;
             send_item->send_ctx = callback_context;
             send_item->send_data = buffer;
             send_item->data_len = size;
+            send_item->cache_data = NULL;
 
             SOCKET_SEND_RESULT send_res = send_socket_data(socket_impl, send_item);
             if (send_res == SEND_RESULT_ERROR)

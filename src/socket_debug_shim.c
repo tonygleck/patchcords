@@ -199,7 +199,9 @@ int socket_shim_wsagetlasterror(void)
 
 u_short socket_shim_htons(u_short hostshort)
 {
-    return htons(hostshort);
+    (void)hostshort;
+    //return htons(hostshort);
+    return 10;
 }
 #endif
 

@@ -23,6 +23,7 @@ PATCH_INSTANCE_HANDLE patchcord_client_create(const IO_INTERFACE_DESCRIPTION* io
         (io_interface_description->interface_impl_close == NULL) ||
         (io_interface_description->interface_impl_send == NULL) ||
         (io_interface_description->interface_impl_process_item == NULL) ||
+        (io_interface_description->interface_impl_enable_async == NULL) ||
         (io_interface_description->interface_impl_query_uri == NULL) ||
         (io_interface_description->interface_impl_query_port == NULL) )
     {
@@ -55,114 +56,129 @@ PATCH_INSTANCE_HANDLE patchcord_client_create(const IO_INTERFACE_DESCRIPTION* io
     return (PATCH_INSTANCE_HANDLE)result;
 }
 
-void patchcord_client_destroy(PATCH_INSTANCE_HANDLE xio)
+void patchcord_client_destroy(PATCH_INSTANCE_HANDLE cord_handle)
 {
-    if (xio != NULL)
+    if (cord_handle != NULL)
     {
-        PATCH_INSTANCE* xio_instance = (PATCH_INSTANCE*)xio;
-        xio_instance->io_interface_description->interface_impl_destroy(xio_instance->concrete_xio_handle);
-        free(xio_instance);
+        PATCH_INSTANCE* patch_instance = (PATCH_INSTANCE*)cord_handle;
+        patch_instance->io_interface_description->interface_impl_destroy(patch_instance->concrete_xio_handle);
+        free(patch_instance);
     }
 }
 
-int patchcord_client_open(PATCH_INSTANCE_HANDLE xio, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_ctx)
+int patchcord_client_open(PATCH_INSTANCE_HANDLE cord_handle, ON_IO_OPEN_COMPLETE on_io_open_complete, void* on_io_open_complete_ctx)
 {
     int result;
-    if (xio == NULL)
+    if (cord_handle == NULL)
     {
         log_error("Invalid parameter specified");
         result = __LINE__;
     }
     else
     {
-        PATCH_INSTANCE* xio_instance = (PATCH_INSTANCE*)xio;
-        result = xio_instance->io_interface_description->interface_impl_open(xio_instance->concrete_xio_handle, on_io_open_complete, on_io_open_complete_ctx);
+        PATCH_INSTANCE* patch_instance = (PATCH_INSTANCE*)cord_handle;
+        result = patch_instance->io_interface_description->interface_impl_open(patch_instance->concrete_xio_handle, on_io_open_complete, on_io_open_complete_ctx);
     }
     return result;
 }
 
-int patchcord_client_listen(PATCH_INSTANCE_HANDLE xio, ON_INCOMING_CONNECT incoming_conn, void* user_ctx)
+int patchcord_client_listen(PATCH_INSTANCE_HANDLE cord_handle, ON_INCOMING_CONNECT incoming_conn, void* user_ctx)
 {
     int result;
-    if (xio == NULL)
+    if (cord_handle == NULL)
     {
         log_error("Invalid parameter specified");
         result = __LINE__;
     }
     else
     {
-        PATCH_INSTANCE* xio_instance = (PATCH_INSTANCE*)xio;
-        if (xio_instance->io_interface_description->interface_impl_listen == NULL)
+        PATCH_INSTANCE* patch_instance = (PATCH_INSTANCE*)cord_handle;
+        if (patch_instance->io_interface_description->interface_impl_listen == NULL)
         {
             log_error("Failure listening function not implemented");
             result = __LINE__;
         }
         else
         {
-            result = xio_instance->io_interface_description->interface_impl_listen(xio_instance->concrete_xio_handle, incoming_conn, user_ctx);
+            result = patch_instance->io_interface_description->interface_impl_listen(patch_instance->concrete_xio_handle, incoming_conn, user_ctx);
         }
     }
     return result;
 }
 
-int patchcord_client_close(PATCH_INSTANCE_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_complete, void* callback_context)
+int patchcord_client_close(PATCH_INSTANCE_HANDLE cord_handle, ON_IO_CLOSE_COMPLETE on_io_close_complete, void* callback_context)
 {
     int result;
-    if (xio == NULL)
+    if (cord_handle == NULL)
     {
         log_error("Invalid parameter specified");
         result = __LINE__;
     }
     else
     {
-        PATCH_INSTANCE* xio_instance = (PATCH_INSTANCE*)xio;
-        result = xio_instance->io_interface_description->interface_impl_close(xio_instance->concrete_xio_handle, on_io_close_complete, callback_context);
+        PATCH_INSTANCE* patch_instance = (PATCH_INSTANCE*)cord_handle;
+        result = patch_instance->io_interface_description->interface_impl_close(patch_instance->concrete_xio_handle, on_io_close_complete, callback_context);
     }
     return result;
 }
 
-int patchcord_client_send(PATCH_INSTANCE_HANDLE xio, const void* buffer, size_t size, ON_SEND_COMPLETE on_send_complete, void* callback_context)
+int patchcord_client_send(PATCH_INSTANCE_HANDLE cord_handle, const void* buffer, size_t size, ON_SEND_COMPLETE on_send_complete, void* callback_context)
 {
     int result;
-    if (xio == NULL)
+    if (cord_handle == NULL)
     {
         log_error("Invalid parameter specified");
         result = __LINE__;
     }
     else
     {
-        PATCH_INSTANCE* xio_instance = (PATCH_INSTANCE*)xio;
-        result = xio_instance->io_interface_description->interface_impl_send(xio_instance->concrete_xio_handle, buffer, size, on_send_complete, callback_context);
+        PATCH_INSTANCE* patch_instance = (PATCH_INSTANCE*)cord_handle;
+        result = patch_instance->io_interface_description->interface_impl_send(patch_instance->concrete_xio_handle, buffer, size, on_send_complete, callback_context);
     }
     return result;
 }
 
-void patchcord_client_process_item(PATCH_INSTANCE_HANDLE xio)
+void patchcord_client_process_item(PATCH_INSTANCE_HANDLE cord_handle)
 {
-    if (xio != NULL)
+    if (cord_handle != NULL)
     {
-        PATCH_INSTANCE* xio_instance = (PATCH_INSTANCE*)xio;
-        xio_instance->io_interface_description->interface_impl_process_item(xio_instance->concrete_xio_handle);
+        PATCH_INSTANCE* patch_instance = (PATCH_INSTANCE*)cord_handle;
+        patch_instance->io_interface_description->interface_impl_process_item(patch_instance->concrete_xio_handle);
     }
 }
 
-const char* patchcord_client_query_endpoint(PATCH_INSTANCE_HANDLE xio, uint16_t* port)
+const char* patchcord_client_query_endpoint(PATCH_INSTANCE_HANDLE cord_handle, uint16_t* port)
 {
     const char* result;
-    if (xio == NULL)
+    if (cord_handle == NULL)
     {
         log_error("Invalid parameter specified");
         result = NULL;
     }
     else
     {
-        PATCH_INSTANCE* xio_instance = (PATCH_INSTANCE*)xio;
-
+        PATCH_INSTANCE* patch_instance = (PATCH_INSTANCE*)cord_handle;
         if (port != NULL)
         {
-            *port = xio_instance->io_interface_description->interface_impl_query_port(xio_instance->concrete_xio_handle);
+            *port = patch_instance->io_interface_description->interface_impl_query_port(patch_instance->concrete_xio_handle);
         }
-        result = xio_instance->io_interface_description->interface_impl_query_uri(xio_instance->concrete_xio_handle);
+        result = patch_instance->io_interface_description->interface_impl_query_uri(patch_instance->concrete_xio_handle);
+    }
+    return result;
+}
+
+int patchcord_client_enable_async(CORD_HANDLE cord_handle, bool async)
+{
+    int result;
+    if (cord_handle == NULL)
+    {
+        log_error("Invalid parameter specified");
+        result = __LINE__;
+    }
+    else
+    {
+        PATCH_INSTANCE* patch_instance = (PATCH_INSTANCE*)cord_handle;
+        result = patch_instance->io_interface_description->interface_impl_enable_async(patch_instance->concrete_xio_handle, async);
     }
     return result;
 }

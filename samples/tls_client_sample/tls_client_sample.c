@@ -49,7 +49,7 @@ void on_xio_send_complete(void* context, IO_SEND_RESULT send_result)
     sample->send_complete = 2;
 }
 
-void on_xio_bytes_recv(void* context, const unsigned char* buffer, size_t size)
+void on_xio_bytes_recv(void* context, const unsigned char* buffer, size_t size, const void* config)
 {
 
 }
@@ -75,20 +75,20 @@ static char* open_file_data(const char* filename)
             size_t read_size = fread(result, 1, file_size, fd);
             if (read_size != (size_t)file_size)
             {
-                printf("failure reader size");
+                printf("failure reader size\n");
                 free(result);
                 result = NULL;
             }
         }
         else
         {
-            printf("failure allocating file data");
+            printf("failure allocating file data\n");
         }
         fclose(fd);
     }
     else
     {
-        printf("failure to open the file");
+        printf("failure to open the file\n");
     }
     return result;
 }
@@ -121,7 +121,7 @@ int main()
         client_info.on_io_error = on_xio_error;
         client_info.on_io_error_ctx = &data;
 
-        CORD_HANDLE handle = patchcord_client_create(cord_tls_get_tls_interface(), &config, &client_info);
+        CORD_HANDLE handle = patchcord_client_create(cord_tls_get_tls_interface(), &tls_config, &client_info);
         if (handle == NULL)
         {
             printf("Failure creating socket");

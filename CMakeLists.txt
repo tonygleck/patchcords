@@ -37,15 +37,15 @@ include_directories(${CMAKE_CURRENT_LIST_DIR}/inc)
 
 #these are the C source files
 set(source_c_files
-    ./src/socket_debug_shim.c
-    ./src/patchcord_client.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/socket_debug_shim.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/patchcord_client.c
 )
 
 #these are the C headers
 set(source_h_files
-    ./inc/patchcords/socket_debug_shim.h
-    ./inc/patchcords/patchcord_client.h
-    ./inc/patchcords/version_patchcord.h
+    ${CMAKE_CURRENT_LIST_DIR}/inc/patchcords/socket_debug_shim.h
+    ${CMAKE_CURRENT_LIST_DIR}/inc/patchcords/patchcord_client.h
+    ${CMAKE_CURRENT_LIST_DIR}/inc/patchcords/version_patchcord.h
 )
 
 #this is the product (a library)
@@ -91,7 +91,7 @@ if (${enable_tls_lib})
         ./src/cord_client_openssl.c
     )
     set(tls_h_files
-    ./inc/patchcords/cord_tls_client.h
+        ./inc/patchcords/cord_tls_client.h
     )
     add_library(cord_openssl ${tls_c_files} ${tls_h_files})
     target_link_libraries(cord_openssl patchcords lib-util-c ssl crypto)

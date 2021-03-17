@@ -16,6 +16,7 @@
 #include "umock_c/umock_c_prod.h"
 
 #include "umock_c/umock_c_negative_tests.h"
+#include "umock_c/umocktypes_bool.h"
 #include "umock_c/umocktypes_charptr.h"
 
 static void* my_mem_shim_malloc(size_t size)
@@ -42,7 +43,8 @@ MOCKABLE_FUNCTION(, int, test_xio_send, CORD_HANDLE, handle, const void*, buffer
 MOCKABLE_FUNCTION(, void, test_xio_process_item, CORD_HANDLE, handle);
 MOCKABLE_FUNCTION(, const char*, test_xio_query_uri, CORD_HANDLE, handle);
 MOCKABLE_FUNCTION(, uint16_t, test_xio_query_port, CORD_HANDLE, handle);
-MOCKABLE_FUNCTION(, int, test_patchcord_client_listen, CORD_HANDLE, handle, ON_INCOMING_CONNECT, incoming_conn, void*, user_ctx);
+MOCKABLE_FUNCTION(, int, test_xio_listen, CORD_HANDLE, handle, ON_INCOMING_CONNECT, incoming_conn, void*, user_ctx);
+MOCKABLE_FUNCTION(, int, test_xio_enable_async, CORD_HANDLE, cord_handle, bool, async);
 
 #undef ENABLE_MOCKS
 
@@ -65,11 +67,12 @@ extern "C" {
         my_mem_shim_free(handle);
     }
 
-    void test_on_bytes_received(void* context, const unsigned char* buffer, size_t size)
+    void test_on_bytes_received(void* context, const unsigned char* buffer, size_t size, const void* config)
     {
         (void)context;
         (void)buffer;
         (void)size;
+        (void)config;
     }
 
     void test_on_io_open_complete(void* context, IO_OPEN_RESULT open_result)
@@ -98,6 +101,7 @@ extern "C" {
     {
         (void)context;
         (void)config;
+        
     }
 
 #ifdef __cplusplus
@@ -114,7 +118,22 @@ const IO_INTERFACE_DESCRIPTION io_interface_description =
     test_xio_process_item,
     test_xio_query_uri,
     test_xio_query_port,
-    test_patchcord_client_listen
+    test_xio_listen,
+    test_xio_enable_async
+};
+
+const IO_INTERFACE_DESCRIPTION io_NULL_listen_desc =
+{
+    test_xio_create,
+    test_xio_destroy,
+    test_xio_open,
+    test_xio_close,
+    test_xio_send,
+    test_xio_process_item,
+    test_xio_query_uri,
+    test_xio_query_port,
+    NULL,
+    NULL
 };
 
 MU_DEFINE_ENUM_STRINGS(UMOCK_C_ERROR_CODE, UMOCK_C_ERROR_CODE_VALUES)
@@ -127,7 +146,8 @@ CTEST_BEGIN_TEST_SUITE(patchcord_client_ut)
 
 CTEST_SUITE_INITIALIZE()
 {
-    umock_c_init(on_umock_c_error);
+    (void)umock_c_init(on_umock_c_error);
+    (void)umocktypes_bool_register_types();
 
     REGISTER_UMOCK_ALIAS_TYPE(CORD_HANDLE, void*);
     REGISTER_UMOCK_ALIAS_TYPE(ON_IO_OPEN_COMPLETE, void*);
@@ -229,6 +249,21 @@ CTEST_FUNCTION(xio_create_interface_desc_NULL_fail)
 
     // act
     PATCH_INSTANCE_HANDLE handle = patchcord_client_create(NULL, &parameters, &client_callbacks);
+
+    // assert
+    CTEST_ASSERT_IS_NULL(handle);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+}
+
+CTEST_FUNCTION(xio_create_patchcord_callback_NULL_fail)
+{
+    // arrange
+    int parameters = 10;
+
+    // act
+    PATCH_INSTANCE_HANDLE handle = patchcord_client_create(&io_interface_description, &parameters, NULL);
 
     // assert
     CTEST_ASSERT_IS_NULL(handle);
@@ -562,7 +597,7 @@ CTEST_FUNCTION(patchcord_client_listen_success)
     PATCH_INSTANCE_HANDLE handle = patchcord_client_create(&io_interface_description, &parameters, &client_callbacks);
     umock_c_reset_all_calls();
 
-    STRICT_EXPECTED_CALL(test_patchcord_client_listen(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG));
+    STRICT_EXPECTED_CALL(test_xio_listen(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG));
 
     // act
     int result = patchcord_client_listen(handle, test_on_accept_conn, NULL);
@@ -575,12 +610,72 @@ CTEST_FUNCTION(patchcord_client_listen_success)
     patchcord_client_destroy(handle);
 }
 
+CTEST_FUNCTION(patchcord_client_listen_func_NULL_fail)
+{
+    // arrange
+    int parameters = 10;
+    PATCHCORD_CALLBACK_INFO client_callbacks = { 0 };
+    client_callbacks.on_bytes_received = test_on_bytes_received;
+    client_callbacks.on_io_error = test_on_io_error;
+    PATCH_INSTANCE_HANDLE handle = patchcord_client_create(&io_NULL_listen_desc, &parameters, &client_callbacks);
+    umock_c_reset_all_calls();
+
+    //STRICT_EXPECTED_CALL(test_xio_listen(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG));
+
+    // act
+    int result = patchcord_client_listen(handle, test_on_accept_conn, NULL);
+
+    // assert
+    CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    patchcord_client_destroy(handle);
+}
+
 CTEST_FUNCTION(patchcord_client_listen_handle_NULL_fail)
 {
     // arrange
 
     // act
     int result = patchcord_client_listen(NULL, test_on_accept_conn, NULL);
+
+    // assert
+    CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+}
+
+CTEST_FUNCTION(patchcord_client_enable_async_success)
+{
+    // arrange
+    int parameters = 10;
+    PATCHCORD_CALLBACK_INFO client_callbacks = { 0 };
+    client_callbacks.on_bytes_received = test_on_bytes_received;
+    client_callbacks.on_io_error = test_on_io_error;
+    PATCH_INSTANCE_HANDLE handle = patchcord_client_create(&io_interface_description, &parameters, &client_callbacks);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(test_xio_enable_async(IGNORED_ARG, IGNORED_ARG));
+
+    // act
+    int result = patchcord_client_enable_async(handle, true);
+
+    // assert
+    CTEST_ASSERT_ARE_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    patchcord_client_destroy(handle);
+}
+
+CTEST_FUNCTION(patchcord_client_enable_async_handle_NULL_fail)
+{
+    // arrange
+
+    // act
+    int result = patchcord_client_enable_async(NULL, true);
 
     // assert
     CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);

@@ -76,40 +76,28 @@ int main()
     {
         printf("Failure creating socket");
     }
-    else if (patchcord_client_open(handle, on_xio_open_complete, &data) != 0)
-    {
-        printf("Failed socket open");
-        patchcord_client_destroy(handle);
-    }
     else
     {
-        do
+        (void)patchcord_client_enable_async(handle, false);
+        if (patchcord_client_open(handle, NULL, NULL) != 0)
         {
-            patchcord_client_process_item(handle);
-
-            if (data.socket_open > 0)
+            printf("Failed socket open");
+        }
+        else
+        {
+            // Send socket
+            if (patchcord_client_send(handle, TEST_SEND_DATA, strlen(TEST_SEND_DATA), NULL, NULL) != 0)
             {
-                if (data.send_complete == 0)
-                {
-                    // Send socket
-                    if (patchcord_client_send(handle, TEST_SEND_DATA, strlen(TEST_SEND_DATA), on_xio_send_complete, &data) != 0)
-                    {
-                        printf("Failure sending data to socket\n");
-                    }
-                }
-                else if (data.send_complete == 2)
-                {
-                    patchcord_client_close(handle, on_xio_close_complete, &data);
-                    data.send_complete++;
-                }
+                printf("Failure sending data to socket\n");
             }
-            if (data.socket_closed > 0)
+            else
             {
-                break;
+                printf("Successfully sent message\n");
             }
-        } while (data.keep_running == 0);
+            patchcord_client_close(handle, NULL, NULL);
 
-        patchcord_client_destroy(handle);
+            patchcord_client_destroy(handle);
+        }
     }
     return 0;
 }

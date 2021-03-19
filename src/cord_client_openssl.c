@@ -530,7 +530,7 @@ void on_socket_send_complete(void* ctx, IO_SEND_RESULT send_result)
     }
 }
 
-void on_socket_bytes_recv(void* ctx, const unsigned char* buffer, size_t size)
+void on_socket_bytes_recv(void* ctx, const unsigned char* buffer, size_t size, const void* config)
 {
     TLS_INSTANCE* tls_instance = (TLS_INSTANCE*)ctx;
     if (tls_instance != NULL)
@@ -538,7 +538,7 @@ void on_socket_bytes_recv(void* ctx, const unsigned char* buffer, size_t size)
         int written = BIO_write(tls_instance->input_bio, buffer, (int)size);
         if (written != (int)size)
         {
-            log_error("Failure decrypting incoming buffer");
+            log_error("Failure decrypting incoming buffer of size %zu", size);
             tls_instance->current_state = IO_STATE_ERROR;
         }
         else
@@ -557,7 +557,7 @@ void on_socket_bytes_recv(void* ctx, const unsigned char* buffer, size_t size)
                     {
                         if (tls_instance->on_bytes_received != NULL)
                         {
-                            tls_instance->on_bytes_received(tls_instance->on_bytes_received_ctx, read_buffer, recv_bytes);
+                            tls_instance->on_bytes_received(tls_instance->on_bytes_received_ctx, read_buffer, recv_bytes, config);
                         }
                     }
                 } while (recv_bytes > 0);

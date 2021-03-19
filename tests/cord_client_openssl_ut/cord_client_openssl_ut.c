@@ -37,7 +37,7 @@ static void my_mem_shim_free(void* ptr)
 #include "openssl/crypto.h"
 #include "openssl/opensslv.h"
 
-MOCKABLE_FUNCTION(, void, test_on_bytes_recv, void*, context, const unsigned char*, buffer, size_t, size);
+MOCKABLE_FUNCTION(, void, test_on_bytes_recv, void*, context, const unsigned char*, buffer, size_t, size, const void*, config);
 MOCKABLE_FUNCTION(, void, test_on_send_complete, void*, context, IO_SEND_RESULT, send_result);
 MOCKABLE_FUNCTION(, void, test_on_open_complete, void*, context, IO_OPEN_RESULT, open_result);
 MOCKABLE_FUNCTION(, void, test_on_close_complete, void*, context);

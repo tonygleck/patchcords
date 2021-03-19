@@ -130,8 +130,9 @@ static void on_socket_error_cb(void* context, IO_ERROR_RESULT error_result)
     e2e_data->client_state = CLIENT_STATE_ERROR;
 }
 
-static void on_socket_bytes_recv_cb(void* context, const unsigned char* buffer, size_t size)
+static void on_socket_bytes_recv_cb(void* context, const unsigned char* buffer, size_t size, const void* config)
 {
+    (void)config;
     log_debug("on_socket_bytes_recv_cb called");
     CLIENT_E2E_DATA* e2e_data = (CLIENT_E2E_DATA*)context;
     CTEST_ASSERT_IS_NOT_NULL(e2e_data, "on_socket_bytes_recv_cb context NULL");

@@ -51,7 +51,7 @@ void on_xio_send_complete(void* context, IO_SEND_RESULT send_result)
     sample->send_complete = 2;
 }
 
-void on_xio_bytes_recv(void* context, const unsigned char* buffer, size_t size)
+void on_xio_bytes_recv(void* context, const unsigned char* buffer, size_t size, const void* config)
 {
 
 }

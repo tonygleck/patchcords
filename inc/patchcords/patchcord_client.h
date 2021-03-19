@@ -13,6 +13,7 @@ extern "C" {
 #else
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 #endif /* __cplusplus */
 
 typedef struct PATCH_INSTANCE_TAG* PATCH_INSTANCE_HANDLE;
@@ -53,7 +54,7 @@ typedef struct ACCEPT_SOCKET_TAG
     uint16_t port;
 } ACCEPT_SOCKET;
 
-typedef void(*ON_BYTES_RECEIVED)(void* context, const unsigned char* buffer, size_t size);
+typedef void(*ON_BYTES_RECEIVED)(void* context, const unsigned char* buffer, size_t size, const void* config);
 typedef void(*ON_SEND_COMPLETE)(void* context, IO_SEND_RESULT send_result);
 typedef void(*ON_IO_OPEN_COMPLETE)(void* context, IO_OPEN_RESULT open_result);
 typedef void(*ON_IO_CLOSE_COMPLETE)(void* context);
@@ -81,6 +82,7 @@ typedef void(*IO_PROCESS_ITEM)(CORD_HANDLE impl_handle);
 typedef const char*(*IO_QUERY_URI)(CORD_HANDLE impl_handle);
 typedef uint16_t(*IO_QUERY_PORT)(CORD_HANDLE impl_handle);
 typedef int(*IO_LISTEN)(CORD_HANDLE impl_handle, ON_INCOMING_CONNECT incoming_conn, void* user_ctx);
+typedef int(*IO_ENABLE_ASYNC)(CORD_HANDLE impl_handle, bool async);
 
 typedef struct IO_INTERFACE_DESCRIPTION_TAG
 {
@@ -93,6 +95,7 @@ typedef struct IO_INTERFACE_DESCRIPTION_TAG
     IO_QUERY_URI interface_impl_query_uri;
     IO_QUERY_PORT interface_impl_query_port;
     IO_LISTEN interface_impl_listen;
+    IO_ENABLE_ASYNC interface_impl_enable_async;
 } IO_INTERFACE_DESCRIPTION;
 
 MOCKABLE_FUNCTION(, PATCH_INSTANCE_HANDLE, patchcord_client_create, const IO_INTERFACE_DESCRIPTION*, io_interface_description, const void*, parameters, const PATCHCORD_CALLBACK_INFO*, client_cb);
@@ -104,6 +107,7 @@ MOCKABLE_FUNCTION(, int, patchcord_client_send, PATCH_INSTANCE_HANDLE, xio, cons
 MOCKABLE_FUNCTION(, void, patchcord_client_process_item, PATCH_INSTANCE_HANDLE, xio);
 
 MOCKABLE_FUNCTION(, const char*, patchcord_client_query_endpoint, PATCH_INSTANCE_HANDLE, xio, uint16_t*, port);
+MOCKABLE_FUNCTION(, int, patchcord_client_enable_async, CORD_HANDLE, cord_handle, bool, async);
 
 #ifdef __cplusplus
 }

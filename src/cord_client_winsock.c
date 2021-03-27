@@ -325,7 +325,7 @@ static int recv_socket_data(SOCKET_INSTANCE* socket_impl)
         int recv_res = recv(socket_impl->socket, (char*)socket_impl->recv_bytes, RECV_BYTES_MAX_VALUE, 0);
         if (recv_res > 0)
         {
-            socket_impl->on_bytes_received(socket_impl->on_bytes_received_ctx, socket_impl->recv_bytes, recv_res);
+            socket_impl->on_bytes_received(socket_impl->on_bytes_received_ctx, socket_impl->recv_bytes, recv_res, NULL);
             result = 0;
         }
         else if (recv_res == 0)

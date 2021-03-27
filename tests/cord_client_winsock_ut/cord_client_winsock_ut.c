@@ -38,7 +38,7 @@ static void my_mem_shim_free(void* ptr)
 #include "lib-util-c/item_list.h"
 #include "lib-util-c/crt_extensions.h"
 
-MOCKABLE_FUNCTION(, void, test_on_bytes_recv, void*, context, const unsigned char*, buffer, size_t, size);
+MOCKABLE_FUNCTION(, void, test_on_bytes_recv, void*, context, const unsigned char*, buffer, size_t, size, const void*, config);
 MOCKABLE_FUNCTION(, void, test_on_send_complete, void*, context, IO_SEND_RESULT, send_result);
 MOCKABLE_FUNCTION(, void, test_on_open_complete, void*, context, IO_OPEN_RESULT, open_result);
 MOCKABLE_FUNCTION(, void, test_on_close_complete, void*, context);
@@ -1020,7 +1020,7 @@ CTEST_FUNCTION(cord_socket_process_item_recv_success)
     STRICT_EXPECTED_CALL(recv(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG))
         .CopyOutArgumentBuffer_buf(g_recv_buffer, sizeof(g_recv_buffer))
         .SetReturn((int)g_recv_buffer_len);
-    STRICT_EXPECTED_CALL(test_on_bytes_recv(IGNORED_ARG, IGNORED_ARG, g_recv_buffer_len));
+    STRICT_EXPECTED_CALL(test_on_bytes_recv(IGNORED_ARG, IGNORED_ARG, g_recv_buffer_len, NULL));
 
     // act
     cord_socket_process_item(handle);

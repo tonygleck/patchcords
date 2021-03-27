@@ -11,60 +11,43 @@
 typedef struct SAMPLE_DATA_TAG
 {
     int keep_running;
-    int socket_open;
-    int socket_closed;
-    int send_complete;
+    int operation_count;
     PATCH_INSTANCE_HANDLE incoming_socket;
 } SAMPLE_DATA;
 
 static const char* TEST_SEND_DATA = "This is a test message\n";
 
-void on_xio_open_complete(void* context, IO_OPEN_RESULT open_result)
+static void on_close_complete(void* context)
 {
     SAMPLE_DATA* sample = (SAMPLE_DATA*)context;
-    if (open_result != IO_OPEN_OK)
-    {
-        sample->keep_running = 1;
-        printf("Open failed\n");
-    }
-    else
-    {
-        sample->socket_open = 1;
-        printf("Open complete called");
-    }
+    sample->operation_count++;
+    printf("Client is closed\n");
 }
 
-static void on_xio_close_complete(void* context)
+static void on_bytes_recv(void* context, const unsigned char* buffer, size_t size, const void* config)
 {
     SAMPLE_DATA* sample = (SAMPLE_DATA*)context;
-    sample->socket_closed = 1;
+    printf("Recv data from socket: %.*s\n", (int)size, buffer);
+    sample->operation_count++;
 }
 
-void on_xio_send_complete(void* context, IO_SEND_RESULT send_result)
-{
-    SAMPLE_DATA* sample = (SAMPLE_DATA*)context;
-    sample->send_complete = 2;
-}
-
-void on_xio_bytes_recv(void* context, const unsigned char* buffer, size_t size)
-{
-
-}
-
-void on_xio_error(void* context, IO_ERROR_RESULT error_result)
+static void on_error(void* context, IO_ERROR_RESULT error_result)
 {
     printf("Error detected\n");
 }
 
-void on_accept_conn(void* context, const void* config)
+static void on_accept_conn(void* context, const void* config)
 {
     const SOCKETIO_CONFIG* socket_config = (const SOCKETIO_CONFIG*)config;
+
+    printf("Accepted connection from hostname: %s\n", socket_config->hostname);
     SAMPLE_DATA* sample = (SAMPLE_DATA*)context;
     PATCHCORD_CALLBACK_INFO client_info;
-    client_info.on_bytes_received = on_xio_bytes_recv;
+    client_info.on_bytes_received = on_bytes_recv;
     client_info.on_bytes_received_ctx = sample;
-    client_info.on_io_error = on_xio_error;
+    client_info.on_io_error = on_error;
     client_info.on_io_error_ctx = sample;
+    sample->operation_count = 0;
     sample->incoming_socket = patchcord_client_create(cord_socket_get_interface(), config, &client_info);
 }
 
@@ -73,39 +56,49 @@ int main()
     SAMPLE_DATA data = {0};
     SOCKETIO_CONFIG config = {0};
     config.hostname = "127.0.0.1";
-    config.port = 4444;
+    config.port = 4848;
     config.address_type = ADDRESS_TYPE_IP;
+
+    size_t size_of_u8 = sizeof(uint8_t);
+    size_t size_of_u32 = sizeof(uint32_t);
+
 
     const IO_INTERFACE_DESCRIPTION* io_desc = cord_socket_get_interface();
     PATCHCORD_CALLBACK_INFO client_info;
-    client_info.on_bytes_received = on_xio_bytes_recv;
+    client_info.on_bytes_received = on_bytes_recv;
     client_info.on_bytes_received_ctx = &data;
-    client_info.on_io_error = on_xio_error;
+    client_info.on_io_error = on_error;
     client_info.on_io_error_ctx = &data;
 
     PATCH_INSTANCE_HANDLE xio_handle = patchcord_client_create(io_desc, &config, &client_info);
     if (xio_handle == NULL)
     {
-        printf("Failure creating socket");
+        printf("Failure creating socket\n");
     }
     else
     {
+        printf("Listening for connection on port %d\n", (int)config.port);
         if (patchcord_client_listen(xio_handle, on_accept_conn, &data) != 0)
         {
-            printf("Failed socket open");
+            printf("Failed listening to socket\n");
         }
         else
         {
             do
             {
                 patchcord_client_process_item(xio_handle);
-
-                if (data.socket_open > 0)
+                if (data.incoming_socket != NULL)
                 {
+                    patchcord_client_process_item(data.incoming_socket);
                 }
-                if (data.socket_closed > 0)
+                if (data.operation_count == 1)
                 {
-                    break;
+                    patchcord_client_close(data.incoming_socket, on_close_complete, &data);
+                }
+                else if (data.operation_count == 2)
+                {
+                    patchcord_client_destroy(data.incoming_socket);
+                    data.incoming_socket = NULL;
                 }
             } while (data.keep_running == 0);
         }

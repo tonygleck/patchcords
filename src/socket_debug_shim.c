@@ -224,6 +224,15 @@ int socket_shim_listen(int __fd, int __n)
 }
 
 #ifdef WIN32
+int socket_shim_recvfrom(SOCKET __fd, char* __buf, int __n, int __flags, sockaddr __addr, int* __addr_len)
+#else
+ssize_t socket_shim_recvfrom(int __fd, void* __buf, size_t __n, int __flags, __SOCKADDR_ARG __addr, socklen_t* __addr_len)
+#endif
+{
+    return recvfrom(__fd, __buf, __n, __flags, __addr, __addr_len);
+}
+
+#ifdef WIN32
 SOCKET socket_shim_accept(SOCKET __fd, struct sockaddr FAR* __addr, int FAR* __addr_len)
 #else
 int socket_shim_accept(int __fd, __SOCKADDR_ARG __addr, socklen_t *__restrict __addr_len)

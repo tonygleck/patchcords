@@ -18,7 +18,7 @@ typedef struct SAMPLE_DATA_TAG
     int send_complete;
 } SAMPLE_DATA;
 
-static const char* TEST_SEND_DATA = "This is a test message\n";
+static const char* TEST_SEND_DATA = "Udp socket message\n";
 
 void on_xio_open_complete(void* context, IO_OPEN_RESULT open_result)
 {
@@ -31,7 +31,7 @@ void on_xio_open_complete(void* context, IO_OPEN_RESULT open_result)
     else
     {
         sample->socket_open = 1;
-        printf("Open complete called");
+        printf("Open complete called\n");
     }
 }
 
@@ -63,7 +63,7 @@ int main()
     SOCKETIO_CONFIG config = {0};
     config.hostname = "127.0.0.1";
     config.port = 4444;
-    config.address_type = ADDRESS_TYPE_IP;
+    config.address_type = ADDRESS_TYPE_UDP;
 
     PATCHCORD_CALLBACK_INFO client_info;
     client_info.on_bytes_received = on_xio_bytes_recv;
@@ -74,11 +74,11 @@ int main()
     CORD_HANDLE handle = patchcord_client_create(cord_socket_get_interface(), &config, &client_info);
     if (handle == NULL)
     {
-        printf("Failure creating socket");
+        printf("Failure creating socket\n");
     }
     else if (patchcord_client_open(handle, on_xio_open_complete, &data) != 0)
     {
-        printf("Failed socket open");
+        printf("Failed socket open\n");
         patchcord_client_destroy(handle);
     }
     else
@@ -95,6 +95,10 @@ int main()
                     if (patchcord_client_send(handle, TEST_SEND_DATA, strlen(TEST_SEND_DATA), on_xio_send_complete, &data) != 0)
                     {
                         printf("Failure sending data to socket\n");
+                    }
+                    else
+                    {
+                        printf("Send message %s", TEST_SEND_DATA);
                     }
                 }
                 else if (data.send_complete == 2)

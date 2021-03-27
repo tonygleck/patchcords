@@ -35,7 +35,7 @@ static void my_mem_shim_free(void* ptr)
 #include "lib-util-c/item_list.h"
 #include "lib-util-c/crt_extensions.h"
 
-MOCKABLE_FUNCTION(, void, test_on_bytes_recv, void*, context, const unsigned char*, buffer, size_t, size);
+MOCKABLE_FUNCTION(, void, test_on_bytes_recv, void*, context, const unsigned char*, buffer, size_t, size, const void*, config);
 MOCKABLE_FUNCTION(, void, test_on_send_complete, void*, context, IO_SEND_RESULT, send_result);
 MOCKABLE_FUNCTION(, void, test_on_open_complete, void*, context, IO_OPEN_RESULT, open_result);
 MOCKABLE_FUNCTION(, void, test_on_close_complete, void*, context);
@@ -205,6 +205,12 @@ extern "C" {
         strcpy(*target, source);
         return 0;
     }
+
+    void my_test_on_accept_conn(void* context, const void* config)
+    {
+        SOCKETIO_CONFIG* sock_config = (SOCKETIO_CONFIG*)config;
+        my_mem_shim_free(sock_config->accepted_socket);
+    }
 #ifdef __cplusplus
 }
 #endif
@@ -262,10 +268,13 @@ CTEST_SUITE_INITIALIZE()
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(socket_shim_bind, -1);
     REGISTER_GLOBAL_MOCK_HOOK(socket_shim_accept, my_socket_shim_accept);
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(socket_shim_accept, 0);
-
+    //REGISTER_GLOBAL_MOCK_RETURN(socket_shim_recvfrom, -1);
+    //REGISTER_GLOBAL_MOCK_FAIL_RETURN(socket_shim_recvfrom, -1);
 
     REGISTER_GLOBAL_MOCK_HOOK(clone_string, my_clone_string);
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(clone_string, __LINE__);
+
+    REGISTER_GLOBAL_MOCK_HOOK(test_on_accept_conn, my_test_on_accept_conn);
 }
 
 CTEST_SUITE_CLEANUP()
@@ -491,6 +500,34 @@ CTEST_FUNCTION(cord_socket_open_succeed)
     cord_socket_destroy(handle);
 }
 
+CTEST_FUNCTION(cord_socket_open_sync_succeed)
+{
+    // arrange
+    SOCKETIO_CONFIG config = {0};
+    config.hostname = TEST_HOSTNAME;
+    config.port = TEST_PORT_VALUE;
+    config.address_type = ADDRESS_TYPE_IP;
+    PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
+    CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
+    (void)cord_socket_enable_async(handle, false);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(socket(AF_INET, SOCK_STREAM, 0));
+    setup_cord_socket_process_item_open_mocks();
+
+    // act
+    int result = cord_socket_open(handle, test_on_open_complete, TEST_USER_CONTEXT_VALUE);
+
+    // assert
+    CTEST_ASSERT_ARE_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    cord_socket_close(handle, NULL, NULL);
+    cord_socket_process_item(handle);
+    cord_socket_destroy(handle);
+}
+
 CTEST_FUNCTION(cord_socket_open_UDP_succeed)
 {
     // arrange
@@ -559,6 +596,66 @@ CTEST_FUNCTION(cord_socket_listen_succeed)
 
     // assert
     CTEST_ASSERT_ARE_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    my_mem_shim_free(g_socket);
+    cord_socket_destroy(handle);
+}
+
+CTEST_FUNCTION(cord_socket_listen_sync_succeed)
+{
+    // arrange
+    SOCKETIO_CONFIG config = {0};
+    config.hostname = TEST_HOSTNAME;
+    config.port = TEST_PORT_VALUE;
+    config.address_type = ADDRESS_TYPE_IP;
+    PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
+    CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
+    (void)cord_socket_enable_async(handle, false);
+    umock_c_reset_all_calls();
+
+    setup_cord_socket_listen_mocks();
+    STRICT_EXPECTED_CALL(accept(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG));
+    STRICT_EXPECTED_CALL(test_on_accept_conn(IGNORED_ARG, IGNORED_ARG));
+    STRICT_EXPECTED_CALL(accept(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG)).SetReturn(-1);
+
+    // act
+    errno = ECONNABORTED;
+    int result = cord_socket_listen(handle, test_on_accept_conn, TEST_USER_CONTEXT_VALUE);
+
+    // assert
+    CTEST_ASSERT_ARE_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    my_mem_shim_free(g_socket);
+    cord_socket_destroy(handle);
+}
+
+CTEST_FUNCTION(cord_socket_listen_sync_listen_fail)
+{
+    // arrange
+    SOCKETIO_CONFIG config = {0};
+    config.hostname = TEST_HOSTNAME;
+    config.port = TEST_PORT_VALUE;
+    config.address_type = ADDRESS_TYPE_IP;
+    PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
+    CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
+    (void)cord_socket_enable_async(handle, false);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(socket(AF_INET, SOCK_STREAM, 0));
+    STRICT_EXPECTED_CALL(bind(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG));
+    STRICT_EXPECTED_CALL(listen(IGNORED_ARG, IGNORED_ARG)).SetReturn(-1);
+    STRICT_EXPECTED_CALL(shutdown(IGNORED_ARG, IGNORED_ARG));
+    STRICT_EXPECTED_CALL(close(IGNORED_ARG));
+
+    // act
+    int result = cord_socket_listen(handle, test_on_accept_conn, TEST_USER_CONTEXT_VALUE);
+
+    // assert
+    CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
     CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
@@ -1194,7 +1291,34 @@ CTEST_FUNCTION(cord_socket_process_item_recv_success)
     STRICT_EXPECTED_CALL(recv(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG)).SetReturn(g_buffer_len);
         /*.CopyOutArgumentBuffer_buf(g_recv_buffer, sizeof(g_recv_buffer))
         .CopyOutArgumentBuffer_len(&g_buffer_len, sizeof(g_buffer_len));*/
-    STRICT_EXPECTED_CALL(test_on_bytes_recv(IGNORED_ARG, IGNORED_ARG, g_buffer_len));
+    STRICT_EXPECTED_CALL(test_on_bytes_recv(IGNORED_ARG, IGNORED_ARG, g_buffer_len, IGNORED_ARG));
+
+    // act
+    cord_socket_process_item(handle);
+
+    // assert
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    (void)cord_socket_close(handle, test_on_close_complete, NULL);
+    cord_socket_process_item(handle);
+    cord_socket_destroy(handle);
+}
+
+CTEST_FUNCTION(cord_socket_process_item_recv_no_callback_set_success)
+{
+    // arrange
+    SOCKETIO_CONFIG config = {0};
+    config.hostname = TEST_HOSTNAME;
+    config.port = TEST_PORT_VALUE;
+    config.address_type = ADDRESS_TYPE_IP;
+    PATCHCORD_CALLBACK_INFO callback_info = { NULL, NULL, test_on_error, NULL, NULL, NULL };
+    CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
+    (void)cord_socket_open(handle, test_on_open_complete, NULL);
+    cord_socket_process_item(handle);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(item_list_get_front(IGNORED_ARG));
 
     // act
     cord_socket_process_item(handle);
@@ -1378,6 +1502,63 @@ CTEST_FUNCTION(cord_socket_process_item_listen_success)
     my_mem_shim_free(g_accept_socket);
 }
 
+CTEST_FUNCTION(cord_socket_process_item_udp_listen_success)
+{
+    // arrange
+    SOCKETIO_CONFIG config = {0};
+    config.hostname = TEST_HOSTNAME;
+    config.port = TEST_PORT_VALUE;
+    config.address_type = ADDRESS_TYPE_UDP;
+    PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
+    CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
+    (void)cord_socket_listen(handle, test_on_accept_conn, NULL);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(recvfrom(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG));
+
+    // act
+    errno = EAGAIN;
+    cord_socket_process_item(handle);
+
+    // assert
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    (void)cord_socket_close(handle, test_on_close_complete, NULL);
+    cord_socket_process_item(handle);
+    cord_socket_destroy(handle);
+    my_mem_shim_free(g_accept_socket);
+}
+
+CTEST_FUNCTION(cord_socket_process_item_udp_listen_failure_success)
+{
+    // arrange
+    SOCKETIO_CONFIG config = {0};
+    config.hostname = TEST_HOSTNAME;
+    config.port = TEST_PORT_VALUE;
+    config.address_type = ADDRESS_TYPE_UDP;
+    PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, TEST_USER_CONTEXT_VALUE, NULL, NULL };
+    CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
+    (void)cord_socket_listen(handle, test_on_accept_conn, NULL);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(recvfrom(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG)).SetReturn(-1);
+    STRICT_EXPECTED_CALL(test_on_error(TEST_USER_CONTEXT_VALUE, IO_ERROR_GENERAL));
+
+    // act
+    errno = EPIPE;
+    cord_socket_process_item(handle);
+
+    // assert
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    (void)cord_socket_close(handle, test_on_close_complete, NULL);
+    cord_socket_process_item(handle);
+    cord_socket_destroy(handle);
+    my_mem_shim_free(g_accept_socket);
+}
+
 CTEST_FUNCTION(cord_socket_query_endpoint_NULL_fail)
 {
     // arrange
@@ -1443,6 +1624,65 @@ CTEST_FUNCTION(cord_socket_query_port_success)
 
     // assert
     CTEST_ASSERT_ARE_EQUAL(uint16_t, TEST_PORT_VALUE, port);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    cord_socket_destroy(handle);
+}
+
+CTEST_FUNCTION(cord_socket_enable_async_handle_NULL_fail)
+{
+    // arrange
+
+    // act
+    int result = cord_socket_enable_async(NULL, false);
+
+    // assert
+    CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+}
+
+CTEST_FUNCTION(cord_socket_enable_async_success)
+{
+    // arrange
+    SOCKETIO_CONFIG config = {0};
+    config.hostname = TEST_HOSTNAME;
+    config.port = TEST_PORT_VALUE;
+    config.address_type = ADDRESS_TYPE_IP;
+    PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
+    CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
+    umock_c_reset_all_calls();
+
+    // act
+    int result = cord_socket_enable_async(handle, false);
+
+    // assert
+    CTEST_ASSERT_ARE_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    cord_socket_destroy(handle);
+}
+
+CTEST_FUNCTION(cord_socket_enable_async_not_closed_fail)
+{
+    // arrange
+    SOCKETIO_CONFIG config = {0};
+    config.hostname = TEST_HOSTNAME;
+    config.port = TEST_PORT_VALUE;
+    config.address_type = ADDRESS_TYPE_IP;
+    PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
+    CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
+    (void)cord_socket_open(handle, test_on_open_complete, NULL);
+    umock_c_reset_all_calls();
+
+    // act
+    int result = cord_socket_enable_async(handle, false);
+
+    // assert
+    CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
     CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup

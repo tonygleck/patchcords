@@ -38,11 +38,13 @@ static void my_mem_shim_free(void* ptr)
 #include "lib-util-c/item_list.h"
 #include "lib-util-c/crt_extensions.h"
 
-MOCKABLE_FUNCTION(, void, test_on_bytes_recv, void*, context, const unsigned char*, buffer, size_t, size);
+MOCKABLE_FUNCTION(, void, test_on_bytes_recv, void*, context, const unsigned char*, buffer, size_t, size, const void*, config);
 MOCKABLE_FUNCTION(, void, test_on_send_complete, void*, context, IO_SEND_RESULT, send_result);
 MOCKABLE_FUNCTION(, void, test_on_open_complete, void*, context, IO_OPEN_RESULT, open_result);
 MOCKABLE_FUNCTION(, void, test_on_close_complete, void*, context);
 MOCKABLE_FUNCTION(, void, test_on_error, void*, context, IO_ERROR_RESULT, error_result);
+MOCKABLE_FUNCTION(, void, test_on_accept_conn, void*, context, const void*, config);
+MOCKABLE_FUNCTION(, void, test_on_client_close, void*, context);
 
 #ifdef __cplusplus
 extern "C"
@@ -71,7 +73,8 @@ static struct addrinfo g_addr_info = {0};
 static struct sockaddr g_connect_addr = {0};
 static unsigned char g_send_buffer[] = { 0x25, 0x26, 0x26, 0x28, 0x29 };
 static unsigned char g_recv_buffer[] = { 0x52, 0x62, 0x88, 0x52, 0x59 };
-static size_t g_buffer_len = 10;
+static size_t g_send_buffer_len = sizeof(g_send_buffer);
+static size_t g_recv_buffer_len = sizeof(g_recv_buffer);
 
 static ADDRINFO TEST_ADDR_INFO = { 0 };
 #define FAKE_GOOD_IP_ADDR 444
@@ -220,6 +223,10 @@ extern "C" {
         {
             result = __LINE__;
         }
+        else if (*source == NULL)
+        {
+            result = __LINE__;
+        }
         else
         {
             (*destination)->ai_flags = (*source)->ai_flags;
@@ -328,6 +335,7 @@ CTEST_SUITE_INITIALIZE()
     REGISTER_UMOCK_ALIAS_TYPE(LPWSADATA, void*);
     REGISTER_TYPE(const ADDRINFOA*, const_ADDRINFOA_ptr);
     REGISTER_UMOCK_ALIAS_TYPE(PADDRINFOA, const ADDRINFOA*);
+    REGISTER_UMOCK_ALIAS_TYPE(u_short, unsigned short);
 
     REGISTER_GLOBAL_MOCK_HOOK(mem_shim_malloc, my_mem_shim_malloc);
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(mem_shim_malloc, NULL);
@@ -498,6 +506,7 @@ CTEST_FUNCTION(cord_socket_destroy_succeed)
     config.address_type = ADDRESS_TYPE_IP;
     PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
     CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
+    CTEST_ASSERT_IS_NOT_NULL(handle);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(free(IGNORED_ARG));
@@ -537,9 +546,10 @@ CTEST_FUNCTION(cord_socket_open_fail)
     config.address_type = ADDRESS_TYPE_IP;
     PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
     CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
+    CTEST_ASSERT_IS_NOT_NULL(handle);
     umock_c_reset_all_calls();
 
-    STRICT_EXPECTED_CALL(socket(AF_INET, SOCK_STREAM, 0)).SetReturn(-1);
+    STRICT_EXPECTED_CALL(socket(AF_INET, SOCK_STREAM, 0)).SetReturn(INVALID_SOCKET);
 
     // act
     int result = cord_socket_open(handle, test_on_open_complete, NULL);
@@ -561,6 +571,7 @@ CTEST_FUNCTION(cord_socket_open_succeed)
     config.address_type = ADDRESS_TYPE_IP;
     PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
     CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
+    CTEST_ASSERT_IS_NOT_NULL(handle);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(socket(AF_INET, SOCK_STREAM, 0));
@@ -588,6 +599,7 @@ CTEST_FUNCTION(cord_socket_open_UDP_succeed)
     config.address_type = ADDRESS_TYPE_UDP;
     PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
     CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
+    CTEST_ASSERT_IS_NOT_NULL(handle);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP));
@@ -613,11 +625,12 @@ CTEST_FUNCTION(cord_socket_open_call_when_open_fail)
     config.address_type = ADDRESS_TYPE_IP;
     PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
     CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
-    int result = cord_socket_open(handle, test_on_open_complete, NULL);
+    CTEST_ASSERT_IS_NOT_NULL(handle);
+    CTEST_ASSERT_ARE_EQUAL(int, 0, cord_socket_open(handle, test_on_open_complete, NULL));
     umock_c_reset_all_calls();
 
     // act
-    result = cord_socket_open(handle, test_on_open_complete, NULL);
+    int result = cord_socket_open(handle, test_on_open_complete, NULL);
 
     // assert
     CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
@@ -625,6 +638,37 @@ CTEST_FUNCTION(cord_socket_open_call_when_open_fail)
 
     // cleanup
     my_mem_shim_free(g_socket);
+    cord_socket_destroy(handle);
+}
+
+CTEST_FUNCTION(cord_socket_listen_success)
+{
+    // arrange
+    SOCKETIO_CONFIG config = { 0 };
+    config.hostname = TEST_HOSTNAME;
+    config.port = TEST_PORT_VALUE;
+    config.address_type = ADDRESS_TYPE_IP;
+    PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
+    CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
+    CTEST_ASSERT_IS_NOT_NULL(handle);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(socket(AF_INET, SOCK_STREAM, 0));
+    STRICT_EXPECTED_CALL(ioctlsocket(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG));
+    STRICT_EXPECTED_CALL(htons(TEST_PORT_VALUE));
+    STRICT_EXPECTED_CALL(bind(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG));
+    STRICT_EXPECTED_CALL(listen(IGNORED_ARG, IGNORED_ARG));
+
+    // act
+    int result = cord_socket_listen(handle, test_on_accept_conn, NULL);
+
+    // assert
+    CTEST_ASSERT_ARE_EQUAL(int, 0, result);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // cleanup
+    (void)cord_socket_close(handle, test_on_close_complete, NULL);
+    cord_socket_process_item(handle);
     cord_socket_destroy(handle);
 }
 
@@ -651,6 +695,7 @@ CTEST_FUNCTION(cord_socket_close_not_open_fail)
     config.address_type = ADDRESS_TYPE_IP;
     PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
     CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
+    CTEST_ASSERT_IS_NOT_NULL(handle);
     umock_c_reset_all_calls();
 
     // act
@@ -674,7 +719,8 @@ CTEST_FUNCTION(cord_socket_close_success)
     config.address_type = ADDRESS_TYPE_IP;
     PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
     CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
-    (void)cord_socket_open(handle, test_on_open_complete, NULL);
+    CTEST_ASSERT_IS_NOT_NULL(handle);
+    CTEST_ASSERT_ARE_EQUAL(int, 0, cord_socket_open(handle, test_on_open_complete, NULL));
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(shutdown(IGNORED_ARG, SD_BOTH));
@@ -698,7 +744,7 @@ CTEST_FUNCTION(cord_socket_send_xio_NULL_fail)
     // arrange
 
     // act
-    int result = cord_socket_send(NULL, g_send_buffer, g_buffer_len, test_on_send_complete, NULL);
+    int result = cord_socket_send(NULL, g_send_buffer, g_send_buffer_len, test_on_send_complete, NULL);
 
     // assert
     CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
@@ -716,10 +762,11 @@ CTEST_FUNCTION(cord_socket_send_not_open_fail)
     config.address_type = ADDRESS_TYPE_IP;
     PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
     CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
+    CTEST_ASSERT_IS_NOT_NULL(handle);
     umock_c_reset_all_calls();
 
     // act
-    int result = cord_socket_send(handle, g_send_buffer, g_buffer_len, test_on_send_complete, NULL);
+    int result = cord_socket_send(handle, g_send_buffer, g_send_buffer_len, test_on_send_complete, NULL);
 
     // assert
     CTEST_ASSERT_ARE_NOT_EQUAL(int, 0, result);
@@ -738,7 +785,8 @@ CTEST_FUNCTION(cord_socket_send_success)
     config.address_type = ADDRESS_TYPE_IP;
     PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
     CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
-    (void)cord_socket_open(handle, test_on_open_complete, NULL);
+    CTEST_ASSERT_IS_NOT_NULL(handle);
+    CTEST_ASSERT_ARE_EQUAL(int, 0, cord_socket_open(handle, test_on_open_complete, NULL));
     cord_socket_process_item(handle);
     umock_c_reset_all_calls();
 
@@ -748,7 +796,7 @@ CTEST_FUNCTION(cord_socket_send_success)
     STRICT_EXPECTED_CALL(free(IGNORED_ARG));
 
     // act
-    int result = cord_socket_send(handle, g_send_buffer, g_buffer_len, test_on_send_complete, NULL);
+    int result = cord_socket_send(handle, g_send_buffer, g_send_buffer_len, test_on_send_complete, NULL);
 
     // assert
     CTEST_ASSERT_ARE_EQUAL(int, 0, result);
@@ -769,16 +817,17 @@ CTEST_FUNCTION(cord_socket_send_no_callback_success)
     config.address_type = ADDRESS_TYPE_IP;
     PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
     CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
-    (void)cord_socket_open(handle, test_on_open_complete, NULL);
+    CTEST_ASSERT_IS_NOT_NULL(handle);
+    CTEST_ASSERT_ARE_EQUAL(int, 0, cord_socket_open(handle, test_on_open_complete, NULL));
     cord_socket_process_item(handle);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
-    STRICT_EXPECTED_CALL(send(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG)).SetReturn((int)g_buffer_len);
+    STRICT_EXPECTED_CALL(send(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG)).SetReturn((int)g_send_buffer_len);
     STRICT_EXPECTED_CALL(free(IGNORED_ARG));
 
     // act
-    int result = cord_socket_send(handle, g_send_buffer, g_buffer_len, NULL, NULL);
+    int result = cord_socket_send(handle, g_send_buffer, g_send_buffer_len, NULL, NULL);
 
     // assert
     CTEST_ASSERT_ARE_EQUAL(int, 0, result);
@@ -790,7 +839,6 @@ CTEST_FUNCTION(cord_socket_send_no_callback_success)
     cord_socket_destroy(handle);
 }
 
-#if 0
 CTEST_FUNCTION(cord_socket_send_partial_send_success)
 {
     // arrange
@@ -800,17 +848,19 @@ CTEST_FUNCTION(cord_socket_send_partial_send_success)
     config.address_type = ADDRESS_TYPE_IP;
     PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
     CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
-    (void)cord_socket_open(handle, test_on_open_complete, NULL);
+    CTEST_ASSERT_IS_NOT_NULL(handle);
+    CTEST_ASSERT_ARE_EQUAL(int, 0, cord_socket_open(handle, test_on_open_complete, NULL));
     cord_socket_process_item(handle);
     umock_c_reset_all_calls();
 
-    size_t partial_send_len = g_buffer_len/2;
+    size_t partial_send_len = g_send_buffer_len /2;
     STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
     STRICT_EXPECTED_CALL(send(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG)).SetReturn((int)partial_send_len);
+    STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
     STRICT_EXPECTED_CALL(item_list_add_item(IGNORED_ARG, IGNORED_ARG));
 
     // act
-    int result = cord_socket_send(handle, g_send_buffer, g_buffer_len, test_on_send_complete, NULL);
+    int result = cord_socket_send(handle, g_send_buffer, g_send_buffer_len, test_on_send_complete, NULL);
 
     // assert
     CTEST_ASSERT_ARE_EQUAL(int, 0, result);
@@ -822,7 +872,7 @@ CTEST_FUNCTION(cord_socket_send_partial_send_success)
     cord_socket_destroy(handle);
 }
 
-/*CTEST_FUNCTION(cord_socket_process_item_handle_NULL_success)
+CTEST_FUNCTION(cord_socket_process_item_handle_NULL_success)
 {
     // arrange
 
@@ -842,8 +892,10 @@ CTEST_FUNCTION(cord_socket_process_item_open_success)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
+    PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
     CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
-    (void)cord_socket_open(handle, test_on_open_complete, NULL);
+    CTEST_ASSERT_IS_NOT_NULL(handle);
+    CTEST_ASSERT_ARE_EQUAL(int, 0, cord_socket_open(handle, test_on_open_complete, NULL));
     umock_c_reset_all_calls();
 
     setup_cord_socket_process_item_open_mocks();
@@ -867,8 +919,10 @@ CTEST_FUNCTION(cord_socket_process_item_getaddrinfo_fail)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
+    PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
     CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
-    (void)cord_socket_open(handle, test_on_open_complete, NULL);
+    CTEST_ASSERT_IS_NOT_NULL(handle);
+    CTEST_ASSERT_ARE_EQUAL(int, 0, cord_socket_open(handle, test_on_open_complete, NULL));
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(getaddrinfo(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG)).SetReturn(__LINE__);
@@ -893,8 +947,10 @@ CTEST_FUNCTION(cord_socket_process_item_connect_fail)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
+    PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
     CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
-    (void)cord_socket_open(handle, test_on_open_complete, NULL);
+    CTEST_ASSERT_IS_NOT_NULL(handle);
+    CTEST_ASSERT_ARE_EQUAL(int, 0, cord_socket_open(handle, test_on_open_complete, NULL));
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(getaddrinfo(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG));
@@ -922,13 +978,17 @@ CTEST_FUNCTION(cord_socket_process_item_success)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
+    PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
     CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
-    (void)cord_socket_open(handle, test_on_open_complete, NULL);
+    CTEST_ASSERT_IS_NOT_NULL(handle);
+    CTEST_ASSERT_ARE_EQUAL(int, 0, cord_socket_open(handle, test_on_open_complete, NULL));
     cord_socket_process_item(handle);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(item_list_get_front(IGNORED_ARG));
     STRICT_EXPECTED_CALL(recv(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG));
+    STRICT_EXPECTED_CALL(WSAGetLastError())
+        .SetReturn(WSAEWOULDBLOCK);
 
     // act
     cord_socket_process_item(handle);
@@ -949,16 +1009,18 @@ CTEST_FUNCTION(cord_socket_process_item_recv_success)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
+    PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
     CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
-    (void)cord_socket_open(handle, test_on_open_complete, NULL);
+    CTEST_ASSERT_IS_NOT_NULL(handle);
+    CTEST_ASSERT_ARE_EQUAL(int, 0, cord_socket_open(handle, test_on_open_complete, NULL));
     cord_socket_process_item(handle);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(item_list_get_front(IGNORED_ARG));
-    STRICT_EXPECTED_CALL(recv(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG)).SetReturn(g_buffer_len);
-        /*.CopyOutArgumentBuffer_buf(g_recv_buffer, sizeof(g_recv_buffer))
-        .CopyOutArgumentBuffer_len(&g_buffer_len, sizeof(g_buffer_len));*/
-    STRICT_EXPECTED_CALL(test_on_bytes_recv(IGNORED_ARG, IGNORED_ARG, g_buffer_len));
+    STRICT_EXPECTED_CALL(recv(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG))
+        .CopyOutArgumentBuffer_buf(g_recv_buffer, sizeof(g_recv_buffer))
+        .SetReturn((int)g_recv_buffer_len);
+    STRICT_EXPECTED_CALL(test_on_bytes_recv(IGNORED_ARG, IGNORED_ARG, g_recv_buffer_len, NULL));
 
     // act
     cord_socket_process_item(handle);
@@ -972,21 +1034,24 @@ CTEST_FUNCTION(cord_socket_process_item_recv_success)
     cord_socket_destroy(handle);
 }
 
-/*CTEST_FUNCTION(cord_socket_process_item_recv_fail)
+CTEST_FUNCTION(cord_socket_process_item_recv_disconnect_success)
 {
     // arrange
     SOCKETIO_CONFIG config = {0};
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
+    PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
     CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
-    (void)cord_socket_open(handle, test_on_open_complete, NULL);
+    CTEST_ASSERT_IS_NOT_NULL(handle);
+    CTEST_ASSERT_ARE_EQUAL(int, 0, cord_socket_open(handle, test_on_open_complete, NULL));
     cord_socket_process_item(handle);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(item_list_get_front(IGNORED_ARG));
-    STRICT_EXPECTED_CALL(recv(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG)).SetReturn(0);
-    STRICT_EXPECTED_CALL(test_on_error(IGNORED_ARG, IO_ENDPOINT_DISCONNECTED));
+    STRICT_EXPECTED_CALL(recv(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG))
+        .SetReturn(0);
+    STRICT_EXPECTED_CALL(test_on_error(IGNORED_ARG, IO_ERROR_ENDPOINT_DISCONN));
 
     // act
     cord_socket_process_item(handle);
@@ -1007,13 +1072,18 @@ CTEST_FUNCTION(cord_socket_process_item_recv_general_fail)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
+    PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
     CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
-    (void)cord_socket_open(handle, test_on_open_complete, NULL);
+    CTEST_ASSERT_IS_NOT_NULL(handle);
+    CTEST_ASSERT_ARE_EQUAL(int, 0, cord_socket_open(handle, test_on_open_complete, NULL));
     cord_socket_process_item(handle);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(item_list_get_front(IGNORED_ARG));
-    STRICT_EXPECTED_CALL(recv(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG)).SetReturn(-1);
+    STRICT_EXPECTED_CALL(recv(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, IGNORED_ARG))
+        .SetReturn(-1);
+    STRICT_EXPECTED_CALL(WSAGetLastError())
+        .SetReturn(WSAEFAULT);
     STRICT_EXPECTED_CALL(test_on_error(IGNORED_ARG, IO_ERROR_GENERAL));
 
     // act
@@ -1027,36 +1097,39 @@ CTEST_FUNCTION(cord_socket_process_item_recv_general_fail)
     (void)cord_socket_close(handle, test_on_close_complete, NULL);
     cord_socket_process_item(handle);
     cord_socket_destroy(handle);
-}*/
+}
 
-/*CTEST_FUNCTION(cord_socket_query_endpoint_NULL_fail)
+CTEST_FUNCTION(cord_socket_query_uri_NULL_fail)
 {
     // arrange
 
     // act
-    cord_socket_query_uri(NULL);
+    const char* result = cord_socket_query_uri(NULL);
 
     // assert
+    CTEST_ASSERT_IS_NULL(result);
     CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
 }
 
-CTEST_FUNCTION(cord_socket_query_endpoint_success)
+CTEST_FUNCTION(cord_socket_query_uri_success)
 {
     // arrange
     SOCKETIO_CONFIG config = {0};
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
+    PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
     CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
+    CTEST_ASSERT_IS_NOT_NULL(handle);
     umock_c_reset_all_calls();
 
     // act
-    const char* endpoint = cord_socket_query_uri(handle);
+    const char* uri = cord_socket_query_uri(handle);
 
     // assert
-    CTEST_ASSERT_ARE_EQUAL(char_ptr, TEST_HOSTNAME, endpoint);
+    CTEST_ASSERT_ARE_EQUAL(char_ptr, TEST_HOSTNAME, uri);
     CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
@@ -1084,6 +1157,7 @@ CTEST_FUNCTION(cord_socket_query_port_success)
     config.hostname = TEST_HOSTNAME;
     config.port = TEST_PORT_VALUE;
     config.address_type = ADDRESS_TYPE_IP;
+    PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
     CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
     umock_c_reset_all_calls();
 
@@ -1096,8 +1170,7 @@ CTEST_FUNCTION(cord_socket_query_port_success)
 
     // cleanup
     cord_socket_destroy(handle);
-}*/
-#endif
+}
 
 CTEST_FUNCTION(cord_socket_get_interface_success)
 {
@@ -1107,6 +1180,7 @@ CTEST_FUNCTION(cord_socket_get_interface_success)
     const IO_INTERFACE_DESCRIPTION* io_desc = cord_socket_get_interface();
 
     // assert
+    CTEST_ASSERT_IS_NOT_NULL(io_desc);
     CTEST_ASSERT_IS_NOT_NULL(io_desc->interface_impl_create);
     CTEST_ASSERT_IS_NOT_NULL(io_desc->interface_impl_destroy);
     CTEST_ASSERT_IS_NOT_NULL(io_desc->interface_impl_open);
@@ -1115,7 +1189,7 @@ CTEST_FUNCTION(cord_socket_get_interface_success)
     CTEST_ASSERT_IS_NOT_NULL(io_desc->interface_impl_process_item);
     CTEST_ASSERT_IS_NOT_NULL(io_desc->interface_impl_query_uri);
     CTEST_ASSERT_IS_NOT_NULL(io_desc->interface_impl_query_port);
-    //CTEST_ASSERT_IS_NOT_NULL(io_desc->interface_impl_l);
+    CTEST_ASSERT_IS_NOT_NULL(io_desc->interface_impl_listen);
     CTEST_ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup

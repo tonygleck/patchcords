@@ -8,14 +8,6 @@
 #include <stddef.h>
 #endif
 
-#include <errno.h>
-#include "ctest.h"
-#include "azure_macro_utils/macro_utils.h"
-#include "umock_c/umock_c.h"
-
-#include "umock_c/umock_c_negative_tests.h"
-#include "umock_c/umocktypes_charptr.h"
-
 static void* my_mem_shim_malloc(size_t size)
 {
     return malloc(size);
@@ -25,6 +17,15 @@ static void my_mem_shim_free(void* ptr)
 {
     free(ptr);
 }
+
+#include <errno.h>
+
+#include "ctest.h"
+#include "azure_macro_utils/macro_utils.h"
+#include "umock_c/umock_c.h"
+
+#include "umock_c/umock_c_negative_tests.h"
+#include "umock_c/umocktypes_charptr.h"
 
 #define ENABLE_MOCKS
 #include "patchcords/patchcord_client.h"
@@ -1253,7 +1254,8 @@ CTEST_FUNCTION(cord_socket_process_item_success)
     config.address_type = ADDRESS_TYPE_IP;
     PATCHCORD_CALLBACK_INFO callback_info = { test_on_bytes_recv, NULL, test_on_error, NULL, NULL, NULL };
     CORD_HANDLE handle = cord_socket_create(&config, &callback_info);
-    (void)cord_socket_open(handle, test_on_open_complete, NULL);
+    CTEST_ASSERT_IS_NOT_NULL(handle);
+    CTEST_ASSERT_ARE_EQUAL(int, 0, cord_socket_open(handle, test_on_open_complete, NULL));
     cord_socket_process_item(handle);
     umock_c_reset_all_calls();
 

@@ -199,7 +199,9 @@ int socket_shim_wsagetlasterror(void)
 
 u_short socket_shim_htons(u_short hostshort)
 {
-    return htons(hostshort);
+    (void)hostshort;
+    //return htons(hostshort);
+    return 10;
 }
 #endif
 
@@ -222,7 +224,7 @@ int socket_shim_listen(int __fd, int __n)
 }
 
 #ifdef WIN32
-int socket_shim_recvfrom(SOCKET __fd, char* __buf, int __n, int __flags, sockaddr __addr, int* __addr_len)
+int socket_shim_recvfrom(SOCKET __fd, char* __buf, int __n, int __flags, struct sockaddr* __addr, int* __addr_len)
 #else
 ssize_t socket_shim_recvfrom(int __fd, void* __buf, size_t __n, int __flags, __SOCKADDR_ARG __addr, socklen_t* __addr_len)
 #endif

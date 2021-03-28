@@ -21,7 +21,7 @@ typedef struct SOCKETIO_CONFIG_TAG
     const char* hostname;
     uint16_t port;
     SOCKETIO_ADDRESS_TYPE address_type;
-    SOCKET accepted_socket;
+    void* accepted_socket;
 } SOCKETIO_CONFIG;
 
 MOCKABLE_FUNCTION(, CORD_HANDLE, cord_socket_create, const void*, parameters, const PATCHCORD_CALLBACK_INFO*, client_cb);

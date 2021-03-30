@@ -488,9 +488,9 @@ static SOCKET_INSTANCE* create_socket_info(const SOCKETIO_CONFIG* config)
         }
         else
         {
-            if (config->accepted_socket != INVALID_SOCKET && config->accepted_socket != 0)
+            if (config->accepted_socket != NULL)
             {
-                result->socket = config->accepted_socket;
+                result->socket = (int)*((int*)config->accepted_socket);
                 result->current_state = IO_STATE_OPEN;
             }
             else
@@ -796,9 +796,13 @@ void cord_socket_process_item(CORD_HANDLE xio)
                     }
                     else
                     {
+                        char hostname_addr[256];
                         SOCKETIO_CONFIG config = { 0 };
                         config.port = cli_addr.sin_port;
-                        config.accepted_socket = accepted_socket;
+
+                        (void)inet_ntop(AF_INET, (const void*)&cli_addr.sin_addr, hostname_addr, sizeof(hostname_addr));
+                        config.hostname = hostname_addr;
+                        config.accepted_socket = &accepted_socket;
                         socket_impl->on_incoming_conn(socket_impl->on_incoming_ctx, &config);
                     }
                 }

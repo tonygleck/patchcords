@@ -16,6 +16,7 @@
 #endif
 
 #include "lib-util-c/app_logging.h"
+//#include "patchcords/socket_debug_shim.h"
 
 typedef enum SOCKET_SHIM_STATE_TAG
 {
@@ -202,6 +203,11 @@ u_short socket_shim_htons(u_short hostshort)
     (void)hostshort;
     //return htons(hostshort);
     return 10;
+}
+
+PCSTR socket_shim_inet_ntop(INT Family, const VOID* pAddr, PSTR pStringBuf, size_t StringBufSize)
+{
+    return inet_ntop(Family, pAddr, pStringBuf, StringBufSize);
 }
 #endif
 

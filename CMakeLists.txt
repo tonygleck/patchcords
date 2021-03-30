@@ -121,6 +121,13 @@ if (${patchcords_ut})
         include_directories(${CTEST_INC_FOLDER})
     endif()
 
+    message("test runner test")
+    if ((NOT TARGET testrunnerswitcher) AND (EXISTS ${CMAKE_CURRENT_LIST_DIR}/deps/c-testrunnerswitcher/CMakeLists.txt))
+    message("test runner test subdirectory")
+        add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/c-testrunnerswitcher)
+        include_directories(${TESTRUNNERSWITCHER_INC_FOLDER})
+    endif() 
+
     add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/tests)
 endif()
 

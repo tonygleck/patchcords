@@ -48,8 +48,8 @@ jobs:
           submodules: 'true'
 
       # Run cmake build on windows
-      - name: Running Cmake on windows
       - uses: ilammy/msvc-dev-cmd@v1
+      - name: Running Cmake on windows
         run: |
           cd ${{ github.workspace }}
           mkdir cmake\build

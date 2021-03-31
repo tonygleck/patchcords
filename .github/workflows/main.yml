@@ -50,4 +50,4 @@ jobs:
       # Runs a single command using the runners shell
       - name: Run a one-line script
         shell: cmd
-        run: $GITHUB_WORKSPACE\scripts\build_project.cmd
+        run: start "$GITHUB_WORKSPACE\scripts\build_project.cmd"

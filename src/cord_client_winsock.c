@@ -69,6 +69,7 @@ typedef struct SOCKET_INSTANCE_TAG
 
     ON_INCOMING_CONNECT on_incoming_conn;
     void* on_incoming_ctx;
+    bool async_enable;
 } SOCKET_INSTANCE;
 
 typedef struct PENDING_SEND_ITEM_TAG
@@ -523,6 +524,7 @@ CORD_HANDLE cord_socket_create(const void* parameters, const PATCHCORD_CALLBACK_
     }
     else
     {
+        result->async_enable = true;
         result->on_bytes_received = client_cb->on_bytes_received;
         result->on_bytes_received_ctx = client_cb->on_bytes_received_ctx;
         result->on_io_error = client_cb->on_io_error;
@@ -846,6 +848,32 @@ uint16_t cord_socket_query_port(CORD_HANDLE xio)
     return result;
 }
 
+int cord_socket_enable_async(CORD_HANDLE cord_handle, bool async)
+{
+    int result;
+    if (cord_handle == NULL)
+    {
+        log_error("Failure invalid parameter specified cord_handle: NULL");
+        result = __LINE__;
+    }
+    else
+    {
+        SOCKET_INSTANCE* socket_impl = (SOCKET_INSTANCE*)cord_handle;
+        if (socket_impl->current_state == IO_STATE_CLOSED)
+        {
+            (void)async;
+            //socket_impl->async_enable = async;
+            result = __LINE__;
+        }
+        else
+        {
+            log_error("Failure setting async invalid setting");
+            result = __LINE__;
+        }
+    }
+    return result;
+}
+
 static const IO_INTERFACE_DESCRIPTION socket_io_interface =
 {
     cord_socket_create,
@@ -856,7 +884,8 @@ static const IO_INTERFACE_DESCRIPTION socket_io_interface =
     cord_socket_process_item,
     cord_socket_query_uri,
     cord_socket_query_port,
-    cord_socket_listen
+    cord_socket_listen,
+    cord_socket_enable_async
 };
 
 const IO_INTERFACE_DESCRIPTION* cord_socket_get_interface(void)

@@ -208,8 +208,9 @@ static void on_socket_send_complete(void* ctx, IO_SEND_RESULT send_result)
     }
 }
 
-static void on_socket_bytes_recv(void* ctx, const unsigned char* buffer, size_t size)
+static void on_socket_bytes_recv(void* ctx, const unsigned char* buffer, size_t size, const void* config)
 {
+    (void)config;
     TLS_INSTANCE* tls_instance = (TLS_INSTANCE*)ctx;
     if (tls_instance != NULL)
     {

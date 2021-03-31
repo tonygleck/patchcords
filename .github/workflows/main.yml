@@ -42,11 +42,11 @@ jobs:
         with:
           cmake-version: '3.6.x'
 
-    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-    - uses: actions/checkout@v2
-      with:
-        submodules: 'true'
+      - name: Checkout repo
+        uses: actions/checkout@v2
+        with:
+          submodules: 'true'
 
-    # Runs a single command using the runners shell
-    - name: Run a one-line script
-      run: $GITHUB_WORKSPACE/scripts/build_coverage.sh
+      # Runs a single command using the runners shell
+      - name: Run a one-line script
+        run: $GITHUB_WORKSPACE/scripts/build_coverage.sh

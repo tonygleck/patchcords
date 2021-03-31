@@ -49,17 +49,19 @@ jobs:
 
       # Run cmake build on windows
       - name: Running Cmake on windows
+      - uses: ilammy/msvc-dev-cmd@v1
         run: |
           cd ${{ github.workspace }}
           mkdir cmake\build
           cd cmake\build
           cmake ../.. -Dpatchcords_ut:BOOL=ON -Denable_tls_lib:BOOL=ON
+          msbuild /m patchcords.sln /p:Configuration=Debug
 
       # Runs a single command using the runners shell
-      - name: Run windows build
-        run: |
-          cd cmake\build
-          msbuild /m patchcords.sln /p:Configuration=Debug
+      # - name: Run windows build
+      #  run: |
+      #    cd cmake\build
+      #    msbuild /m patchcords.sln /p:Configuration=Debug
 
       # Runs a single command using the runners shell
       - name: Run tests on the windows build

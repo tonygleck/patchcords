@@ -33,3 +33,5 @@ if not !ERRORLEVEL!==0 exit /b !ERRORLEVEL!
 ctest -C "debug" -V
 
 popd
+
+goto :eof

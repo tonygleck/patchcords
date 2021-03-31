@@ -24,13 +24,13 @@ jobs:
       with:
         submodules: 'true'
 
-    - name: valgrind
+    - name: install valgrind
       run: sudo apt-get install -y gcc valgrind cmake
 
     # Runs a single command using the runners shell
-    - name: Run a one-line script
+    - name: Run linux build script
       run: $GITHUB_WORKSPACE/scripts/build_coverage.sh
-  
+
   windows-build:
     # The type of runner
     runs-on: windows-latest
@@ -47,7 +47,22 @@ jobs:
         with:
           submodules: 'true'
 
+      # Run cmake build on windows
+      - name: Running Cmake on windows
+        run: |
+          cd ${{ github.workspace }}
+          mkdir cmake\build
+          cd cmake\build
+          cmake ../.. -Dpatchcords_ut:BOOL=ON -Denable_tls_lib:BOOL=ON
+
       # Runs a single command using the runners shell
-      - name: Run a one-line script
-        shell: cmd
-        run: start "$GITHUB_WORKSPACE\scripts\build_project.cmd"
+      - name: Run windows build
+        run: |
+          cd cmake\build
+          msbuild /m patchcords.sln /p:Configuration=Debug
+
+      # Runs a single command using the runners shell
+      - name: Run tests on the windows build
+        run: |
+          cd cmake\build
+          ctest -C "debug" -V

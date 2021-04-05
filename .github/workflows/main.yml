@@ -13,7 +13,7 @@ on:
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   # This workflow contains a single job called "build"
-  build:
+  linux-build:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
 
@@ -24,9 +24,47 @@ jobs:
       with:
         submodules: 'true'
 
-    - name: valgrind
+    - name: install valgrind
       run: sudo apt-get install -y gcc valgrind cmake
 
     # Runs a single command using the runners shell
-    - name: Run a one-line script
+    - name: Run linux build script
       run: $GITHUB_WORKSPACE/scripts/build_coverage.sh
+
+  windows-build:
+    # The type of runner
+    runs-on: windows-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      - name: Setup cmake
+        uses: jwlawson/actions-setup-cmake@v1.8
+        with:
+          cmake-version: '3.16.x'
+
+      - name: Checkout repo
+        uses: actions/checkout@v2
+        with:
+          submodules: 'true'
+
+      # Run cmake build on windows
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Running Cmake on windows
+        run: |
+          cd ${{ github.workspace }}
+          mkdir cmake\build
+          cd cmake\build
+          cmake ../.. -Dpatchcords_ut:BOOL=ON -Denable_tls_lib:BOOL=ON
+          msbuild /m patchcords.sln /p:Configuration=Debug
+
+      # Runs a single command using the runners shell
+      # - name: Run windows build
+      #  run: |
+      #    cd cmake\build
+      #    msbuild /m patchcords.sln /p:Configuration=Debug
+
+      # Runs a single command using the runners shell
+      - name: Run tests on the windows build
+        run: |
+          cd cmake\build
+          ctest -C "debug" -V

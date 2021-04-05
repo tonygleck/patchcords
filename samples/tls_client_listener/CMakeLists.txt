@@ -6,10 +6,10 @@ set(tls_client_listener_files
 
 add_executable(tls_client_listener ${tls_client_listener_files})
 
-target_link_libraries(tls_client_listener patchcords cord_openssl lib-util-c)
+target_link_libraries(tls_client_listener patchcords lib-util-c)
 
-if (UNIX)
-    target_link_libraries(tls_client_listener cord_berkley)
-elseif(WIN32)
-    target_link_libraries(tls_client_listener cord_winsock)
-endif (UNIX)
+if(WIN32)
+    target_link_libraries(tls_client_listener cord_winsock cord_schannel)
+else()
+    target_link_libraries(tls_client_listener cord_berkley cord_openssl)
+endif(WIN32)

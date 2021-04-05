@@ -63,12 +63,13 @@ typedef struct SOCKET_INSTANCE_TAG
     ON_IO_ERROR on_io_error;
     void* on_io_error_ctx;
     ON_IO_CLOSE_COMPLETE on_io_close_complete;
-    void* on_close_ctx;
-    ON_CLIENT_CLOSED on_client_close;
+    void* on_close_complete_ctx;
+    ON_CLIENT_CLOSED on_client_closed;
     void* on_close_ctx;
 
     ON_INCOMING_CONNECT on_incoming_conn;
     void* on_incoming_ctx;
+    bool async_enable;
 } SOCKET_INSTANCE;
 
 typedef struct PENDING_SEND_ITEM_TAG
@@ -92,14 +93,13 @@ static void on_pending_list_item_destroy(void* user_ctx, void* remove_item)
     free(pending_item);
 }
 
-static int indicate_error(SOCKET_INSTANCE* socket_impl, IO_ERROR_RESULT err_result)
+static void indicate_error(SOCKET_INSTANCE* socket_impl, IO_ERROR_RESULT err_result)
 {
     socket_impl->current_state = IO_STATE_ERROR;
     if (socket_impl->on_io_error != NULL)
     {
         socket_impl->on_io_error(socket_impl->on_io_error_ctx, err_result);
     }
-    return 0;
 }
 
 static int select_network_interface(SOCKET_INSTANCE* socket_impl)
@@ -111,13 +111,16 @@ static int select_network_interface(SOCKET_INSTANCE* socket_impl)
 
 static void close_socket(SOCKET_INSTANCE* socket_impl)
 {
-    (void)shutdown(socket_impl->socket, SD_BOTH);
-    closesocket(socket_impl->socket);
-    socket_impl->socket = INVALID_SOCKET;
-
-    if (socket_impl->on_io_close_complete != NULL)
+    if (socket_impl->socket != INVALID_SOCKET)
     {
-        socket_impl->on_io_close_complete(socket_impl->on_close_ctx);
+        (void)shutdown(socket_impl->socket, SD_BOTH);
+        closesocket(socket_impl->socket);
+        socket_impl->socket = INVALID_SOCKET;
+
+        if (socket_impl->on_io_close_complete != NULL)
+        {
+            socket_impl->on_io_close_complete(socket_impl->on_close_complete_ctx);
+        }
     }
 }
 
@@ -323,14 +326,14 @@ static int recv_socket_data(SOCKET_INSTANCE* socket_impl)
         int recv_res = recv(socket_impl->socket, (char*)socket_impl->recv_bytes, RECV_BYTES_MAX_VALUE, 0);
         if (recv_res > 0)
         {
-            socket_impl->on_bytes_received(socket_impl->on_bytes_received_ctx, socket_impl->recv_bytes, recv_res);
+            socket_impl->on_bytes_received(socket_impl->on_bytes_received_ctx, socket_impl->recv_bytes, recv_res, NULL);
             result = 0;
         }
         else if (recv_res == 0)
         {
-            if (socket_impl->on_client_close != NULL)
+            if (socket_impl->on_client_closed != NULL)
             {
-                socket_impl->on_client_close(socket_impl->on_close_ctx);
+                socket_impl->on_client_closed(socket_impl->on_close_ctx);
             }
             else
             {
@@ -407,7 +410,7 @@ static SOCKET_SEND_RESULT send_socket_data(SOCKET_INSTANCE* socket_impl, PENDING
                 {
                     pending_item->on_send_complete(pending_item->send_ctx, IO_SEND_ERROR);
                 }
-                log_error("Failure allocating malloc");
+                log_error("Failure moving data to storage");
                 result = SEND_RESULT_ERROR;
             }
             else
@@ -521,11 +524,12 @@ CORD_HANDLE cord_socket_create(const void* parameters, const PATCHCORD_CALLBACK_
     }
     else
     {
+        result->async_enable = true;
         result->on_bytes_received = client_cb->on_bytes_received;
         result->on_bytes_received_ctx = client_cb->on_bytes_received_ctx;
         result->on_io_error = client_cb->on_io_error;
         result->on_io_error_ctx = client_cb->on_io_error_ctx;
-        result->on_client_close = client_cb->on_client_close;
+        result->on_client_closed = client_cb->on_client_close;
         result->on_close_ctx = client_cb->on_close_ctx;
     }
     return (CORD_HANDLE)result;
@@ -664,7 +668,7 @@ int cord_socket_close(CORD_HANDLE xio, ON_IO_CLOSE_COMPLETE on_io_close_complete
         {
             socket_impl->current_state = IO_STATE_CLOSING;
             socket_impl->on_io_close_complete = on_io_close_complete;
-            socket_impl->on_close_ctx = ctx;
+            socket_impl->on_close_complete_ctx = ctx;
             result = 0;
         }
     }
@@ -686,13 +690,13 @@ int cord_socket_send(CORD_HANDLE xio, const void* buffer, size_t size, ON_SEND_C
         // If the current state is open, then just try to send the data
         if (socket_impl->current_state != IO_STATE_OPEN)
         {
-            log_error("Failure sending in incorrect state");
-            result = MU_FAILURE;
+            log_error("Failure sending incorrect state %d", socket_impl->current_state);
+            result = __LINE__;
         }
         else if ((send_item = (PENDING_SEND_ITEM*)malloc(sizeof(PENDING_SEND_ITEM))) == NULL)
         {
-            log_error("Failure allocating malloc");
-            result = MU_FAILURE;
+            log_error("Failure allocating pending send item");
+            result = __LINE__;
         }
         else
         {
@@ -700,13 +704,14 @@ int cord_socket_send(CORD_HANDLE xio, const void* buffer, size_t size, ON_SEND_C
             send_item->send_ctx = callback_context;
             send_item->send_data = buffer;
             send_item->data_len = size;
+            send_item->cache_data = NULL;
 
             SOCKET_SEND_RESULT send_res = send_socket_data(socket_impl, send_item);
-            if (send_res != SEND_RESULT_SUCCESS)
+            if (send_res == SEND_RESULT_ERROR)
             {
                 log_error("Failure attempting to send socket data");
                 free(send_item);
-                result = MU_FAILURE;
+                result = __LINE__;
             }
             else if (send_res == SEND_RESULT_SUCCESS)
             {
@@ -716,7 +721,17 @@ int cord_socket_send(CORD_HANDLE xio, const void* buffer, size_t size, ON_SEND_C
             else
             {
                 // Partial send, don't free wait for the dowork
-                result = 0;
+                if (item_list_add_item(socket_impl->pending_list, send_item) != 0)
+                {
+                    log_error("Failure adding item to list");
+                    free(send_item->cache_data);
+                    free(send_item);
+                    result = __LINE__;
+                }
+                else
+                {
+                    result = 0;
+                }
             }
         }
     }
@@ -728,71 +743,75 @@ void cord_socket_process_item(CORD_HANDLE xio)
     if (xio != NULL)
     {
         SOCKET_INSTANCE* socket_impl = (SOCKET_INSTANCE*)xio;
-
-        if (socket_impl->current_state == IO_STATE_OPENING)
+        switch (socket_impl->current_state)
         {
-            // Open the socket
-            if (open_socket(socket_impl) != 0)
-            {
-                socket_impl->current_state = IO_STATE_ERROR;
-            }
-            else
-            {
-                socket_impl->current_state = IO_STATE_OPEN;
-            }
-        }
-        else if (socket_impl->current_state == IO_STATE_CLOSING)
-        {
-            close_socket(socket_impl);
-            socket_impl->current_state = IO_STATE_CLOSED;
-        }
-        else if (socket_impl->current_state == IO_STATE_OPEN)
-        {
-            // Going into the send/recv loop.  Keep trying to send the data until:
-            // 1. there isn't anything to send
-            // 2. there was an error
-            // 3. We have a wait or partial send (the socket is backed up)
-            // 4. Data was recieved so we probably should send the data
-            bool cont_process_loop = true;
-            do
-            {
-                if (send_socket_cached_data(socket_impl) != SEND_RESULT_SUCCESS)
+            case IO_STATE_OPENING:
+                // Open the socket
+                if (open_socket(socket_impl) != 0)
                 {
-                    cont_process_loop = false;
-                }
-                if (recv_socket_data(socket_impl) != 0)
-                {
-                    cont_process_loop = false;
-                }
-            } while (cont_process_loop);
-        }
-        else if (socket_impl->current_state == IO_STATE_LISTENING)
-        {
-            struct sockaddr_in cli_addr;
-            socklen_t client_len = sizeof(cli_addr);
-            // Accept actual connection from the client
-            SOCKET accepted_socket = accept(socket_impl->socket, (struct sockaddr *)&cli_addr, &client_len);
-            if (accepted_socket != SOCKET_ERROR)
-            {
-                u_long mode = 1;
-                if (ioctlsocket(socket_impl->socket, FIONBIO, &mode) != 0)
-                {
-                    log_error("Failure setting accepted socket to non blocking");
-                    (void)shutdown(accepted_socket, SD_BOTH);
-                    closesocket(accepted_socket);
+                    socket_impl->current_state = IO_STATE_ERROR;
                 }
                 else
                 {
-                    SOCKETIO_CONFIG config = { 0 };
-                    config.port = cli_addr.sin_port;
-                    config.accepted_socket = &accepted_socket;
-                    socket_impl->on_incoming_conn(socket_impl->on_incoming_ctx, &config);
+                    socket_impl->current_state = IO_STATE_OPEN;
                 }
+                break;
+            case IO_STATE_CLOSING:
+                close_socket(socket_impl);
+                socket_impl->current_state = IO_STATE_CLOSED;
+                break;
+            case IO_STATE_OPEN:
+            {
+                // Going into the send/recv loop.  Keep trying to send the data until:
+                // 1. there isn't anything to send
+                // 2. there was an error
+                // 3. We have a wait or partial send (the socket is backed up)
+                // 4. Data was recieved so we probably should send the data
+                bool cont_process_loop = true;
+                do
+                {
+                    if (send_socket_cached_data(socket_impl) != SEND_RESULT_SUCCESS)
+                    {
+                        cont_process_loop = false;
+                    }
+                    if (recv_socket_data(socket_impl) != 0)
+                    {
+                        cont_process_loop = false;
+                    }
+                } while (cont_process_loop);
+                break;
             }
-        }
-        else
-        {
+            case IO_STATE_LISTENING:
+            {
+                struct sockaddr_in cli_addr;
+                socklen_t client_len = sizeof(cli_addr);
+                // Accept actual connection from the client
+                SOCKET accepted_socket = accept(socket_impl->socket, (struct sockaddr *)&cli_addr, &client_len);
+                if (accepted_socket != SOCKET_ERROR)
+                {
+                    u_long mode = 1;
+                    if (ioctlsocket(socket_impl->socket, FIONBIO, &mode) != 0)
+                    {
+                        log_error("Failure setting accepted socket to non blocking");
+                        (void)shutdown(accepted_socket, SD_BOTH);
+                        closesocket(accepted_socket);
+                    }
+                    else
+                    {
+                        char hostname_addr[256];
+                        SOCKETIO_CONFIG config = { 0 };
+                        config.port = cli_addr.sin_port;
 
+                        (void)inet_ntop(AF_INET, (const void*)&cli_addr.sin_addr, hostname_addr, sizeof(hostname_addr));
+                        config.hostname = hostname_addr;
+                        config.accepted_socket = &accepted_socket;
+                        socket_impl->on_incoming_conn(socket_impl->on_incoming_ctx, &config);
+                    }
+                }
+                    break;
+            }
+            default:
+                break;
         }
     }
 }
@@ -829,6 +848,32 @@ uint16_t cord_socket_query_port(CORD_HANDLE xio)
     return result;
 }
 
+int cord_socket_enable_async(CORD_HANDLE cord_handle, bool async)
+{
+    int result;
+    if (cord_handle == NULL)
+    {
+        log_error("Failure invalid parameter specified cord_handle: NULL");
+        result = __LINE__;
+    }
+    else
+    {
+        SOCKET_INSTANCE* socket_impl = (SOCKET_INSTANCE*)cord_handle;
+        if (socket_impl->current_state == IO_STATE_CLOSED)
+        {
+            (void)async;
+            //socket_impl->async_enable = async;
+            result = __LINE__;
+        }
+        else
+        {
+            log_error("Failure setting async invalid setting");
+            result = __LINE__;
+        }
+    }
+    return result;
+}
+
 static const IO_INTERFACE_DESCRIPTION socket_io_interface =
 {
     cord_socket_create,
@@ -839,7 +884,8 @@ static const IO_INTERFACE_DESCRIPTION socket_io_interface =
     cord_socket_process_item,
     cord_socket_query_uri,
     cord_socket_query_port,
-    cord_socket_listen
+    cord_socket_listen,
+    cord_socket_enable_async
 };
 
 const IO_INTERFACE_DESCRIPTION* cord_socket_get_interface(void)

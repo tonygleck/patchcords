@@ -34,9 +34,9 @@ typedef struct PERF_CLIENT_TAG
     INSTRUMENTATION* latest_send;
 } PERF_CLIENT;
 
-static const char PERF_SEND_DATA[MESSAGE_SIZE];
+static const char PERF_SEND_DATA[MESSAGE_SIZE] = { 0 };
 
-void on_xio_open_complete(void* context, IO_OPEN_RESULT open_result)
+static void on_xio_open_complete(void* context, IO_OPEN_RESULT open_result)
 {
     PERF_CLIENT* sample = (PERF_CLIENT*)context;
     if (open_result != IO_OPEN_OK)
@@ -57,20 +57,26 @@ static void on_xio_close_complete(void* context)
     data->socket_open = false;
 }
 
-void on_xio_send_complete(void* context, IO_SEND_RESULT send_result)
+static void on_xio_send_complete(void* context, IO_SEND_RESULT send_result)
 {
+    (void)send_result;
     INSTRUMENTATION* instrument = (INSTRUMENTATION*)context;
     time_t curr_tm = time(NULL);
     instrument->latency = difftime(instrument->time_sent, curr_tm);
     instrument->in_flight = false;
 }
 
-void on_xio_bytes_recv(void* context, const unsigned char* buffer, size_t size, const void* config)
+static void on_xio_bytes_recv(void* context, const unsigned char* buffer, size_t size, const void* config)
 {
+    (void)context;
+    (void)buffer;
+    (void)size;
+    (void)config;
 }
 
-void on_xio_error(void* context, IO_ERROR_RESULT error_result)
+static void on_xio_error(void* context, IO_ERROR_RESULT error_result)
 {
+    (void)error_result;
     PERF_CLIENT* data = (PERF_CLIENT*)context;
     data->error = 1;
     printf("Error detected\n");
@@ -125,6 +131,7 @@ static CORD_HANDLE open_server(PERF_CLIENT* data)
 
 static void list_remove_func(void* user_ctx, void* remove_item)
 {
+    (void)user_ctx;
     free(remove_item);
 }
 
@@ -165,7 +172,7 @@ static void process_perf_info(PERF_CLIENT* data)
 
         const INSTRUMENTATION* instrument_item;
         double latency_total = 0.0;
-        while ((instrument_item = item_list_get_next(data->instrument_list, &iterator)))
+        while ((instrument_item = item_list_get_next(data->instrument_list, &iterator)) != NULL)
         {
             latency_total += instrument_item->latency;
             item_list_remove_item(data->instrument_list, 0);

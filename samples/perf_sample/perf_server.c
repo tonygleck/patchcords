@@ -48,6 +48,7 @@ typedef struct PERF_SERVER_TAG
 
 static void on_server_error(void* context, IO_ERROR_RESULT error_result)
 {
+    (void)error_result;
     PERF_SERVER* data = (PERF_SERVER*)context;
     data->error = 1;
     printf("Server Error detected\n");
@@ -102,8 +103,10 @@ static void process_client_info(CLIENT_CONNECTION* client_conn)
     free(client_conn);
 }
 
-void on_client_bytes_recv(void* context, const unsigned char* buffer, size_t size)
+static void on_client_bytes_recv(void* context, const unsigned char* buffer, size_t size, const void* config)
 {
+    (void)config;
+    (void)buffer;
     CLIENT_CONNECTION* client_conn = (CLIENT_CONNECTION*)context;
     client_conn->msg_size += size;
     if (client_conn->msg_size >= MESSAGE_SIZE)
@@ -113,7 +116,7 @@ void on_client_bytes_recv(void* context, const unsigned char* buffer, size_t siz
     }
 }
 
-void on_client_error(void* context, IO_ERROR_RESULT error_result)
+static void on_client_error(void* context, IO_ERROR_RESULT error_result)
 {
     CLIENT_CONNECTION* client_conn = (CLIENT_CONNECTION*)context;
     client_conn->state = IO_STATE_ERROR;
@@ -131,7 +134,7 @@ static void on_accept_conn(void* context, const void* config)
 {
     printf("Incoming socket connection\n");
 
-    const SOCKETIO_CONFIG* socket_config = (const SOCKETIO_CONFIG*)config;
+    //const SOCKETIO_CONFIG* socket_config = (const SOCKETIO_CONFIG*)config;
     PERF_SERVER* data = (PERF_SERVER*)context;
 
     CLIENT_CONNECTION* client_conn = calloc(1, sizeof(CLIENT_CONNECTION));

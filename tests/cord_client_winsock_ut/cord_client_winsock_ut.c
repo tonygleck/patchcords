@@ -24,7 +24,7 @@ static void my_mem_shim_free(void* ptr)
 #include <windows.h>
 
 #include "ctest.h"
-#include "azure_macro_utils/macro_utils.h"
+#include "macro_utils/macro_utils.h"
 #include "umock_c/umock_c.h"
 
 #include "umock_c/umock_c_negative_tests.h"
@@ -84,6 +84,8 @@ extern "C" {
 #endif
     int socket_shim_fcntl(int __fd, int __cmd, ...)
     {
+        (void)__fd;
+        (void)__cmd;
         return 0;
     }
 
@@ -113,12 +115,15 @@ extern "C" {
 
     static int my_item_list_remove_item(ITEM_LIST_HANDLE handle, size_t remove_index)
     {
+        (void)handle;
+        (void)remove_index;
         g_item_list_destroy_cb(g_item_list_user_ctx, (void*)g_item_list[g_item_list_index--]);
         return 0;
     }
 
     static const void* my_item_list_get_front(ITEM_LIST_HANDLE handle)
     {
+        (void)handle;
         const void* result;
         if (g_item_list_index > 0)
         {
@@ -133,12 +138,16 @@ extern "C" {
 
     static SOCKET my_socket_shim_socket(int domain, int type, int protocol)
     {
+        (void)domain;
+        (void)type;
+        (void)protocol;
         g_socket = my_mem_shim_malloc(1);
         return (int)__LINE__;
     }
 
     static int my_socket_shim_close(SOCKET sock)
     {
+        (void)sock;
         my_mem_shim_free(g_socket);
         return 0;
     }
@@ -161,6 +170,10 @@ extern "C" {
 
     static int my_socket_shim_send(SOCKET sock, const void* buf, int len, int flags)
     {
+        (void)sock;
+        (void)buf;
+        (void)len;
+        (void)flags;
         return len;
     }
 
@@ -352,7 +365,7 @@ CTEST_SUITE_INITIALIZE()
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(item_list_get_front, NULL);
 
     REGISTER_GLOBAL_MOCK_HOOK(socket_shim_socket, my_socket_shim_socket);
-    REGISTER_GLOBAL_MOCK_FAIL_RETURN(socket_shim_socket, -1);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(socket_shim_socket, INVALID_SOCKET);
     REGISTER_GLOBAL_MOCK_HOOK(socket_shim_close, my_socket_shim_close);
     REGISTER_GLOBAL_MOCK_HOOK(socket_shim_getaddrinfo, my_socket_shim_getaddrinfo);
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(socket_shim_getaddrinfo, __LINE__);

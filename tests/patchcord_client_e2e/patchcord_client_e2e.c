@@ -10,7 +10,7 @@
 #endif
 
 #include "ctest.h"
-#include "azure_macro_utils/macro_utils.h"
+#include "macro_utils/macro_utils.h"
 #include "umock_c/umock_c.h"
 
 #include "lib-util-c/crt_extensions.h"
@@ -116,6 +116,7 @@ static PATCH_INSTANCE_HANDLE create_io_ip_socket_objects(const SOCKETIO_CONFIG* 
 // Callbacks
 static void on_socket_send_complete_cb(void* context, IO_SEND_RESULT send_result)
 {
+    (void)send_result;
     CLIENT_E2E_DATA* e2e_data = (CLIENT_E2E_DATA*)context;
     CTEST_ASSERT_IS_NOT_NULL(e2e_data, "on_socket_send_complete_cb context NULL");
 }
@@ -143,7 +144,7 @@ static void on_socket_bytes_recv_cb(void* context, const unsigned char* buffer, 
 static void on_socket_connect_cb(void* context, const void* config)
 {
     log_debug("on_socket_connect_cb called");
-    const SOCKETIO_CONFIG* socket_config = (const SOCKETIO_CONFIG*)config;
+    //const SOCKETIO_CONFIG* socket_config = (const SOCKETIO_CONFIG*)config;
 
     CLIENT_E2E_DATA* e2e_data = (CLIENT_E2E_DATA*)context;
     CTEST_ASSERT_IS_NOT_NULL(e2e_data, "on_socket_connect_cb context NULL");
@@ -159,6 +160,7 @@ static void on_socket_connect_cb(void* context, const void* config)
 
 static void on_socket_open_complete(void* context, IO_OPEN_RESULT open_result)
 {
+    (void)open_result;
     log_debug("on_socket_open_complete called");
     CLIENT_E2E_DATA* e2e_data = (CLIENT_E2E_DATA*)context;
     CTEST_ASSERT_IS_NOT_NULL(e2e_data, "on_socket_open_complete context NULL");
@@ -177,6 +179,7 @@ static void on_socket_close_complete_cb(void* context)
 
 static void on_socket_send_complete(void* context, IO_SEND_RESULT send_result)
 {
+    (void)send_result;
     log_debug("on_socket_send_complete called");
 
     CLIENT_E2E_DATA* e2e_data = (CLIENT_E2E_DATA*)context;

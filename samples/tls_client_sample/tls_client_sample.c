@@ -43,19 +43,25 @@ static void on_xio_close_complete(void* context)
     sample->socket_closed = 1;
 }
 
-void on_xio_send_complete(void* context, IO_SEND_RESULT send_result)
+static void on_xio_send_complete(void* context, IO_SEND_RESULT send_result)
 {
+    (void)send_result;
     SAMPLE_DATA* sample = (SAMPLE_DATA*)context;
     sample->send_complete = 2;
 }
 
-void on_xio_bytes_recv(void* context, const unsigned char* buffer, size_t size, const void* config)
+static void on_xio_bytes_recv(void* context, const unsigned char* buffer, size_t size, const void* config)
 {
-
+    (void)context;
+    (void)buffer;
+    (void)size;
+    (void)config;
 }
 
-void on_xio_error(void* context, IO_ERROR_RESULT error_result)
+static void on_xio_error(void* context, IO_ERROR_RESULT error_result)
 {
+    (void)context;
+    (void)error_result;
     printf("Error detected\n");
 }
 

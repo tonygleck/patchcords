@@ -202,6 +202,7 @@ static void on_socket_close_complete(void* ctx)
 
 static void on_socket_send_complete(void* ctx, IO_SEND_RESULT send_result)
 {
+    (void)send_result;
     TLS_INSTANCE* tls_instance = (TLS_INSTANCE*)ctx;
     if (tls_instance != NULL)
     {
@@ -211,6 +212,7 @@ static void on_socket_send_complete(void* ctx, IO_SEND_RESULT send_result)
 static void on_socket_bytes_recv(void* ctx, const unsigned char* buffer, size_t size, const void* config)
 {
     (void)config;
+    (void)buffer;
     TLS_INSTANCE* tls_instance = (TLS_INSTANCE*)ctx;
     if (tls_instance != NULL)
     {
@@ -241,6 +243,7 @@ static void on_accept_conn(void* ctx, const void* config)
     if (tls_instance == NULL)
     {
         const SOCKETIO_CONFIG* socket_config = (const SOCKETIO_CONFIG*)config;
+        (void)socket_config;
     }
     else
     {
@@ -423,7 +426,6 @@ int cord_tls_close(CORD_HANDLE handle, ON_IO_CLOSE_COMPLETE on_close_complete, v
         }
         else
         {
-            TLS_INSTANCE* tls_instance = (TLS_INSTANCE*)handle;
             tls_instance->on_close_complete = on_close_complete;
             tls_instance->on_close_complete_ctx = callback_ctx;
 
@@ -449,6 +451,9 @@ int cord_tls_close(CORD_HANDLE handle, ON_IO_CLOSE_COMPLETE on_close_complete, v
 
 int cord_tls_send(CORD_HANDLE handle, const void* buffer, size_t size, ON_SEND_COMPLETE on_send_complete, void* callback_context)
 {
+    (void)size;
+    (void)on_send_complete;
+    (void)callback_context;
     int result;
     if (handle == NULL || buffer == NULL)
     {

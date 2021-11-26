@@ -26,6 +26,7 @@ static void on_close_complete(void* context)
 
 static void on_bytes_recv(void* context, const unsigned char* buffer, size_t size, const void* config)
 {
+    (void)config;
     SAMPLE_DATA* sample = (SAMPLE_DATA*)context;
     printf("Recv data from socket: %.*s\n", (int)size, buffer);
     sample->operation_count++;
@@ -33,6 +34,8 @@ static void on_bytes_recv(void* context, const unsigned char* buffer, size_t siz
 
 static void on_error(void* context, IO_ERROR_RESULT error_result)
 {
+    (void)context;
+    (void)error_result;
     printf("Error detected\n");
 }
 
@@ -58,10 +61,6 @@ int main()
     config.hostname = "127.0.0.1";
     config.port = 4848;
     config.address_type = ADDRESS_TYPE_IP;
-
-    size_t size_of_u8 = sizeof(uint8_t);
-    size_t size_of_u32 = sizeof(uint32_t);
-
 
     const IO_INTERFACE_DESCRIPTION* io_desc = cord_socket_get_interface();
     PATCHCORD_CALLBACK_INFO client_info;

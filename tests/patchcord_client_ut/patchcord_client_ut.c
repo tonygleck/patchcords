@@ -11,7 +11,7 @@
 #endif
 
 #include "ctest.h"
-#include "azure_macro_utils/macro_utils.h"
+#include "macro_utils/macro_utils.h"
 #include "umock_c/umock_c.h"
 #include "umock_c/umock_c_prod.h"
 
@@ -89,6 +89,7 @@ extern "C" {
     void test_on_io_error(void* context, IO_ERROR_RESULT error_result)
     {
         (void)context;
+        (void)error_result;
     }
 
     void test_on_send_complete(void* context, IO_SEND_RESULT send_result)
@@ -101,7 +102,7 @@ extern "C" {
     {
         (void)context;
         (void)config;
-        
+
     }
 
 #ifdef __cplusplus

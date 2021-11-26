@@ -31,40 +31,40 @@ jobs:
     - name: Run linux build script
       run: $GITHUB_WORKSPACE/scripts/build_coverage.sh
 
-  windows-build:
-    # The type of runner
-    runs-on: windows-2022
+  # windows-build:
+  #   # The type of runner
+  #   runs-on: windows-2022
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
-    steps:
-      - name: Setup cmake
-        uses: jwlawson/actions-setup-cmake@v1.8
-        with:
-          cmake-version: '3.16.x'
+  #   # Steps represent a sequence of tasks that will be executed as part of the job
+  #   steps:
+  #     - name: Setup cmake
+  #       uses: jwlawson/actions-setup-cmake@v1.8
+  #       with:
+  #         cmake-version: '3.16.x'
 
-      - name: Checkout repo
-        uses: actions/checkout@v2
-        with:
-          submodules: 'true'
+  #     - name: Checkout repo
+  #       uses: actions/checkout@v2
+  #       with:
+  #         submodules: 'true'
 
-      # Run cmake build on windows
-      - uses: ilammy/msvc-dev-cmd@v1
-      - name: Running Cmake on windows
-        run: |
-          cd ${{ github.workspace }}
-          mkdir cmake\build
-          cd cmake\build
-          cmake ../.. -Dpatchcords_ut:BOOL=ON -Denable_tls_lib:BOOL=ON
-          msbuild /m patchcords.sln /p:Configuration=Debug
+  #     # Run cmake build on windows
+  #     - uses: ilammy/msvc-dev-cmd@v1
+  #     - name: Running Cmake on windows
+  #       run: |
+  #         cd ${{ github.workspace }}
+  #         mkdir cmake\build
+  #         cd cmake\build
+  #         cmake ../.. -Dpatchcords_ut:BOOL=ON -Denable_tls_lib:BOOL=ON
+  #         msbuild /m patchcords.sln /p:Configuration=Debug
 
-      # Runs a single command using the runners shell
-      # - name: Run windows build
-      #  run: |
-      #    cd cmake\build
-      #    msbuild /m patchcords.sln /p:Configuration=Debug
+  #     # Runs a single command using the runners shell
+  #     # - name: Run windows build
+  #     #  run: |
+  #     #    cd cmake\build
+  #     #    msbuild /m patchcords.sln /p:Configuration=Debug
 
-      # Runs a single command using the runners shell
-      - name: Run tests on the windows build
-        run: |
-          cd cmake\build
-          ctest -C "debug"
+  #     # Runs a single command using the runners shell
+  #     - name: Run tests on the windows build
+  #       run: |
+  #         cd cmake\build
+  #         ctest -C "debug"

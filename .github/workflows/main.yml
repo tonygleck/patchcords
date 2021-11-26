@@ -67,4 +67,4 @@ jobs:
       - name: Run tests on the windows build
         run: |
           cd cmake\build
-          ctest -C "debug" -V
+          ctest -C "debug"

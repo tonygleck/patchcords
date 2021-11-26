@@ -102,7 +102,7 @@ static void process_client_info(CLIENT_CONNECTION* client_conn)
     free(client_conn);
 }
 
-void on_client_bytes_recv(void* context, const unsigned char* buffer, size_t size)
+static void on_client_bytes_recv(void* context, const unsigned char* buffer, size_t size, const void* config)
 {
     CLIENT_CONNECTION* client_conn = (CLIENT_CONNECTION*)context;
     client_conn->msg_size += size;
@@ -113,7 +113,7 @@ void on_client_bytes_recv(void* context, const unsigned char* buffer, size_t siz
     }
 }
 
-void on_client_error(void* context, IO_ERROR_RESULT error_result)
+static void on_client_error(void* context, IO_ERROR_RESULT error_result)
 {
     CLIENT_CONNECTION* client_conn = (CLIENT_CONNECTION*)context;
     client_conn->state = IO_STATE_ERROR;

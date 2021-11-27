@@ -19,13 +19,13 @@ else()
 endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/cmake_configs/proj_config.cmake")
-
-set(run_traceability OFF)
+set_default_build_options()
 
 # Add dependencies
 if ((NOT TARGET c_build_tools) AND (EXISTS ${CMAKE_CURRENT_LIST_DIR}/deps/c-build-tools/CMakeLists.txt))
+    set(run_traceability OFF)
+    set(build_traceability_tool OFF)
     add_subdirectory(deps/c-build-tools)
-    set_default_build_options()
 endif()
 if ((NOT TARGET macro_utils_c) AND (EXISTS ${CMAKE_CURRENT_LIST_DIR}/deps/macro-utils-c/CMakeLists.txt))
     add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/deps/macro-utils-c)

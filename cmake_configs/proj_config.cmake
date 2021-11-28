@@ -105,9 +105,9 @@ macro(set_default_build_options)
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -g")
     endif()
 
-    if(${run_valgrind} OR ${run_helgrind} OR ${run_drd})
-        add_definitions(-DUSE_VALGRIND)
-    endif()
+    # if(${run_valgrind} OR ${run_helgrind} OR ${run_drd})
+    #     add_definitions(-DUSE_VALGRIND)
+    # endif()
 
     if (WIN32)
         if (${use_segment_heap})

@@ -183,7 +183,7 @@ int main()
     client_info.on_io_error = on_server_error;
     client_info.on_io_error_ctx = &data;
 
-    // Create thread pool here;
+    // Create thread pool here
     if (alarm_timer_init(&data.timer) != 0)
     {
         printf("failure initializing timer\n");

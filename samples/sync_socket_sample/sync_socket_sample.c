@@ -9,7 +9,6 @@
 #include "patchcords/cord_tls_client.h"
 #include "patchcords/cord_socket_client.h"
 
-
 typedef struct SAMPLE_DATA_TAG
 {
     int keep_running;

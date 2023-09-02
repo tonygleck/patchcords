@@ -312,7 +312,7 @@ static void setup_cord_socket_process_item_open_mocks(void)
 static void setup_cord_socket_send_mocks(void)
 {
     STRICT_EXPECTED_CALL(malloc(IGNORED_ARG));
-    STRICT_EXPECTED_CALL(send(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, 0));//.SetReturn(g_buffer_len);
+    STRICT_EXPECTED_CALL(send(IGNORED_ARG, IGNORED_ARG, IGNORED_ARG, 0));
     STRICT_EXPECTED_CALL(test_on_send_complete(IGNORED_ARG, IO_SEND_OK));
     STRICT_EXPECTED_CALL(free(IGNORED_ARG));
 }

@@ -45,6 +45,10 @@ static void on_xio_send_complete(void* context, IO_SEND_RESULT send_result)
 {
     (void)send_result;
     SAMPLE_DATA* sample = (SAMPLE_DATA*)context;
+    if (send_result == IO_SEND_ERROR)
+    {
+        printf("Send error");
+    }
     sample->send_complete = 2;
 }
 
@@ -77,6 +81,7 @@ int main()
     client_info.on_io_error = on_xio_error;
     client_info.on_io_error_ctx = &data;
 
+    printf("Creating patchcord\n");
     CORD_HANDLE handle = patchcord_client_create(cord_socket_get_interface(), &config, &client_info);
     if (handle == NULL)
     {

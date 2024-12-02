@@ -6,6 +6,12 @@ function(add_unittest_directory test_directory)
     endif()
 endfunction(add_unittest_directory)
 
+function(add_inttest_directory test_directory)
+    if (${patchcords_int})
+        add_subdirectory(${test_directory})
+    endif()
+endfunction(add_inttest_directory)
+
 function(build_dll_project whatIsBuilding folder)
     link_directories(${whatIsBuilding}_dll $ENV{VCInstallDir}UnitTest/lib)
 

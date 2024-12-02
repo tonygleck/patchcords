@@ -1,5 +1,3 @@
-cmake_minimum_required(VERSION 3.3.0)
-
 set(perf_client_files
     perf_client.c
 )

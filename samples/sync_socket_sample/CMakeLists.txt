@@ -1,4 +1,3 @@
-cmake_minimum_required(VERSION 3.3.0)
 
 set(socket_sample_files
     sync_socket_sample.c

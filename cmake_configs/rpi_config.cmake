@@ -1,3 +1,5 @@
+#Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
 SET(CMAKE_SYSTEM_NAME Linux)
 SET(CMAKE_SYSTEM_VERSION 1)
 

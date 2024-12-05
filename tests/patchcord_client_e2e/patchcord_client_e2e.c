@@ -144,7 +144,6 @@ static void on_socket_bytes_recv_cb(void* context, const unsigned char* buffer, 
 static void on_socket_connect_cb(void* context, const void* config)
 {
     log_debug("on_socket_connect_cb called");
-    //const SOCKETIO_CONFIG* socket_config = (const SOCKETIO_CONFIG*)config;
 
     CLIENT_E2E_DATA* e2e_data = (CLIENT_E2E_DATA*)context;
     CTEST_ASSERT_IS_NOT_NULL(e2e_data, "on_socket_connect_cb context NULL");

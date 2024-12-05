@@ -1,4 +1,3 @@
-cmake_minimum_required(VERSION 3.3.0)
 
 set(socket_listener_files
     udp_socket_listener.c

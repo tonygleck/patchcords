@@ -1,12 +1,13 @@
 #Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.18)
 
 #Use solution folders.
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 project(patchcords)
 
 option(patchcords_ut "Include unittest in build" OFF)
+option(patchcords_int "Include integration test in build" OFF)
 option(patchcords_samples "Include samples in build" OFF)
 option(enable_tls_lib "Turn on the TLS libraries" OFF)
 

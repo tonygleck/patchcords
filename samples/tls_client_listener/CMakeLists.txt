@@ -1,4 +1,3 @@
-cmake_minimum_required(VERSION 3.3.0)
 
 set(tls_client_listener_files
     tls_client_listener.c
